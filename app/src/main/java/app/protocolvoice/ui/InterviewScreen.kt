@@ -98,6 +98,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.protocolvoice.R
+import app.protocolvoice.asr.AsrLanguage
 import app.protocolvoice.asr.AsrService
 import app.protocolvoice.asr.ConfidenceLevel
 import app.protocolvoice.asr.EmbeddingModel
@@ -149,6 +150,7 @@ fun InterviewScreen(
     val isPlaying by vm.player.isPlaying.collectAsStateWithLifecycle()
     val playerCurrentMs by vm.player.currentMs.collectAsStateWithLifecycle()
     val playerTotalMs by vm.player.totalMs.collectAsStateWithLifecycle()
+    val asrLanguage by vm.asrLanguage.collectAsStateWithLifecycle()
 
     val ctx = LocalContext.current
     val snack = remember { SnackbarHostState() }
@@ -204,6 +206,22 @@ fun InterviewScreen(
                     }
                 },
                 actions = {
+                    // Бэйдж языка распознавания — кликабельный, ведёт на About экран для смены.
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(BrandBlue.copy(alpha = 0.18f))
+                            .clickable { onOpenAbout() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = if (asrLanguage == AsrLanguage.EN) "EN" else "RU",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandBlue,
+                        )
+                    }
                     IconButton(onClick = onOpenHistory) {
                         Icon(Icons.Default.History, contentDescription = stringResource(R.string.action_history))
                     }
@@ -253,27 +271,7 @@ fun InterviewScreen(
                                     },
                                 )
                             }
-                            // Пункт 3: Тест английского ASR — DEBUG только
-                            if (app.protocolvoice.BuildConfig.DEBUG) {
-                                DropdownMenuItem(
-                                    text = { Text("🇬🇧 Тест EN ASR (sample)") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        vm.runEnglishAsrSmokeTest(ctx)
-                                    },
-                                )
-                                // Показываем только в RECORDED — когда есть запись для распознавания
-                                if (phase == InterviewViewModel.Phase.RECORDED) {
-                                    DropdownMenuItem(
-                                        text = { Text("🇬🇧 Распознать как EN") },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            vm.transcribeLastRecordingAsEnglish(ctx)
-                                        },
-                                    )
-                                }
-                            }
-                            // Пункт 4: О программе — доступ к экрану благодарностей и лицензий
+                            // Пункт 3: О программе — доступ к экрану благодарностей и лицензий
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_about)) },
                                 onClick = {

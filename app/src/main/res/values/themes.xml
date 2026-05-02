@@ -23,7 +23,9 @@
     </style>
 
     <!-- Основная тема UI (без splash). Используется в Activity.theme -->
-    <style name="Theme.ProtocolVoice.NoSplash" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- Базовая тема Material Light без ActionBar — Compose сам всё рисует -->
+    <style name="Theme.ProtocolVoice.NoSplash" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- AppCompat DayNight NoActionBar — требуется для AppCompatActivity
+             (который нужен для AppCompatDelegate.setApplicationLocales — смены языка UI).
+             Compose рисует всё своё визуально — AppCompat-стили не перекрываются. -->
     </style>
 </resources>

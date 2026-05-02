@@ -254,4 +254,20 @@
     <string name="about_section_license">License</string>
     <string name="about_license_text">This app is distributed under the Apache 2.0 license. Source code is available on GitHub.</string>
     <string name="about_back">Back</string>
+
+    <!-- Language selection (within About screen) -->
+    <string name="about_section_language">Recognition language</string>
+    <string name="about_lang_intro">Choose the spoken language for recognition. Russian is built-in; English requires an additional ~152 MB download.</string>
+    <string name="about_lang_ru_title">Russian</string>
+    <string name="about_lang_ru_desc">GigaAM-v3 (Sber AI). Ready to use.</string>
+    <string name="about_lang_en_title">English</string>
+    <string name="about_lang_en_desc_ready">Whisper base.en. Models downloaded.</string>
+    <string name="about_lang_en_desc_needs_download">Whisper base.en. Needs ~152 MB download.</string>
+    <string name="about_lang_en_downloading">Downloading English models…</string>
+
+    <!-- Download confirmation dialog for EN models -->
+    <string name="dialog_download_en_title">Download English models?</string>
+    <string name="dialog_download_en_message">To recognize English speech, the app needs to download Whisper base.en (about 152 MB). Download now?</string>
+    <string name="dialog_download_en_confirm">Download</string>
+    <string name="dialog_download_en_cancel">Cancel</string>
 </resources>

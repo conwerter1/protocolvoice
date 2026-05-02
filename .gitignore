@@ -38,9 +38,8 @@ app/src/main/assets_backup_large_models/
 # !app/src/main/assets/asr/silero_vad.onnx
 # !app/src/main/assets/asr/gigaam_v3_e2e_ctc_tokens.txt
 
-# === Sherpa-onnx AAR ===
-# Включён в репо (~36 МБ) — чтобы clone+build работал без дополнительных шагов.
-# app/libs/sherpa-onnx.aar
+# === Sherpa-onnx AAR (большой, скачивается отдельно) ===
+app/libs/sherpa-onnx.aar
 
 # === Build/dev logs (генерируются локально) ===
 build_log.txt

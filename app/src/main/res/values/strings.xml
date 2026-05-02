@@ -254,4 +254,20 @@
     <string name="about_section_license">Лицензия</string>
     <string name="about_license_text">Приложение распространяется под лицензией Apache 2.0. Исходный код доступен на GitHub.</string>
     <string name="about_back">Назад</string>
+
+    <!-- Language selection (within About screen) -->
+    <string name="about_section_language">Язык распознавания</string>
+    <string name="about_lang_intro">Выберите язык речи для распознавания. Русский — встроенный, английский требует дополнительной загрузки ~152 МБ.</string>
+    <string name="about_lang_ru_title">Русский</string>
+    <string name="about_lang_ru_desc">GigaAM-v3 (Sber AI). Готов к работе.</string>
+    <string name="about_lang_en_title">Английский</string>
+    <string name="about_lang_en_desc_ready">Whisper base.en. Модели скачаны.</string>
+    <string name="about_lang_en_desc_needs_download">Whisper base.en. Требует скачать ~152 МБ.</string>
+    <string name="about_lang_en_downloading">Скачиваются английские модели…</string>
+
+    <!-- Download confirmation dialog for EN models -->
+    <string name="dialog_download_en_title">Скачать английские модели?</string>
+    <string name="dialog_download_en_message">Для распознавания английской речи нужно скачать Whisper base.en (около 152 МБ). Скачать сейчас?</string>
+    <string name="dialog_download_en_confirm">Скачать</string>
+    <string name="dialog_download_en_cancel">Отмена</string>
 </resources>

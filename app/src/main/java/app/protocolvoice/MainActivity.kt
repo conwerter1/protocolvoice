@@ -2,9 +2,9 @@ package app.protocolvoice
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -44,7 +44,7 @@ import app.protocolvoice.ui.theme.InterviewTheme
  * RecordingService, иначе останавливаем. Это держит приложение «живым»
  * в фоне на всё время записи (для часовых интервью обязательно).
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     private enum class Screen { DOWNLOADER, MAIN, HISTORY, ABOUT }
 

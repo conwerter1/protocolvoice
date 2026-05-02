@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import app.protocolvoice.R
+import app.protocolvoice.asr.AsrLanguage
 import app.protocolvoice.asr.AsrService
 import app.protocolvoice.asr.EmbeddingModel
 import app.protocolvoice.asr.EnglishAsrService
@@ -167,6 +168,17 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
         if (_asrLanguage.value == lang) return
         _asrLanguage.value = lang
         prefs().edit().putString("asr_language", lang.name).apply()
+
+        // Одновременно меняем язык интерфейса. Архитектурное решение:
+        // RU/EN язык распознавания = RU/EN язык UI. Проще и логичнее для пользователя.
+        // Используем AppCompatDelegate.setApplicationLocales() — работает в runtime без перезапуска
+        // или с автоматическим рестартом Activity (в зависимости от configChanges).
+        val localeTag = when (lang) {
+            AsrLanguage.RU -> "ru"
+            AsrLanguage.EN -> "en"
+        }
+        val locales = androidx.core.os.LocaleListCompat.forLanguageTags(localeTag)
+        androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
     }
 
     private fun loadAsrLanguagePref(): AsrLanguage {
@@ -306,6 +318,15 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runRecognition() {
         val wav = _wavFile.value ?: return
+        // Разветвление по языку: RU идёт в родной пайплайн (GigaAM + diarization),
+        // EN — в Whisper-обёртку (single-speaker в версии 1.0; multi-speaker будет в Шаге 3).
+        when (_asrLanguage.value) {
+            AsrLanguage.RU -> runRussianRecognition(wav)
+            AsrLanguage.EN -> runEnglishRecognition(wav)
+        }
+    }
+
+    private fun runRussianRecognition(wav: File) {
         viewModelScope.launch {
             _phase.value = Phase.PROCESSING
             // initialize() идемпотентен — если уже загружено, вернёт сразу.
@@ -341,6 +362,122 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
                 // Фоновая конвертация WAV → M4A. Не блокирует UI — пользователь
                 // может править участников и жать «Сохранить DOCX» пока это идёт.
                 compressWavToM4aInBackground(wav)
+            }
+        }
+    }
+
+    /**
+     * EN-ветка распознавания — использует Whisper base.en вместо GigaAM.
+     *
+     * В версии 1.0 это всегда single-speaker (без диаризации), т.к. Whisper имеет
+     * лимит ~30 сек на инференцию — режем запись на 25-сек куски и склеиваем.
+     *
+     * Multi-speaker EN (интеграция Whisper с diarization) — реализуется в Шаге 3.
+     */
+    private fun runEnglishRecognition(wav: File) {
+        viewModelScope.launch {
+            _phase.value = Phase.PROCESSING
+            val ctx = getApplication<Application>()
+
+            // Проверяем что EN модели скачаны
+            if (!isAsrLanguageReady(ctx, AsrLanguage.EN)) {
+                _phase.value = Phase.ERROR
+                _toast.value = "Английские модели не скачаны. Откройте «О программе» и скачайте."
+                return@launch
+            }
+
+            val enAsrSvc = ensureEnAsr(ctx)
+            if (enAsrSvc == null) {
+                _phase.value = Phase.ERROR
+                _toast.value = "Не удалось инициализировать Whisper."
+                return@launch
+            }
+
+            try {
+                val samples = withContext(Dispatchers.IO) { readWavFromFile(wav) }
+                if (samples == null || samples.isEmpty()) {
+                    _phase.value = Phase.ERROR
+                    _toast.value = "Не удалось прочитать запись."
+                    return@launch
+                }
+
+                val totalDurationMs = (samples.size * 1000L) / 16_000L
+
+                // Чанкинг: режем на 25-секундные куски
+                val chunkSize = 25 * 16_000
+                val parts = mutableListOf<Pair<Long, String>>() // (offsetMs, text)
+
+                if (samples.size <= chunkSize) {
+                    val text = enAsrSvc.transcribe(samples, sampleRate = 16_000)
+                    if (!text.isNullOrBlank()) parts.add(0L to text.trim())
+                } else {
+                    var offset = 0
+                    while (offset < samples.size) {
+                        val end = (offset + chunkSize).coerceAtMost(samples.size)
+                        val chunk = samples.copyOfRange(offset, end)
+                        val text = enAsrSvc.transcribe(chunk, sampleRate = 16_000)
+                        val offsetMs = (offset.toLong() * 1000L) / 16_000L
+                        if (!text.isNullOrBlank()) parts.add(offsetMs to text.trim())
+                        offset = end
+                    }
+                }
+
+                if (parts.isEmpty()) {
+                    _phase.value = Phase.ERROR
+                    _toast.value = "Whisper вернул пустой результат. Возможно в записи нет речи."
+                    return@launch
+                }
+
+                // Собираем InterviewTranscript из результатов Whisper.
+                // В версии 1.0 все сегменты — «Спикер 0» (single-speaker).
+                val segments = parts.map { (offsetMs, text) ->
+                    val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+                    val perWordMs = if (words.isEmpty()) 0L else (chunkSize.toLong() * 1000L / 16_000L) / words.size.coerceAtLeast(1)
+                    val transcriptWords = mutableListOf<app.protocolvoice.asr.TranscriptWord>()
+                    var cursor = offsetMs
+                    for (w in words) {
+                        val confidence = when {
+                            w.length >= 5 -> 0.92f
+                            w.length >= 3 -> 0.78f
+                            w.length >= 2 -> 0.65f
+                            else          -> 0.45f
+                        }
+                        transcriptWords.add(app.protocolvoice.asr.TranscriptWord(
+                            text = w,
+                            startMs = cursor,
+                            endMs = cursor + perWordMs,
+                            confidence = confidence,
+                        ))
+                        cursor += perWordMs
+                    }
+                    app.protocolvoice.asr.TranscriptSegment(
+                        speakerId = 0,
+                        startMs = offsetMs,
+                        endMs = (offsetMs + chunkSize.toLong() * 1000L / 16_000L).coerceAtMost(totalDurationMs),
+                        words = transcriptWords,
+                    )
+                }
+
+                val result = app.protocolvoice.asr.InterviewTranscript(
+                    segments = segments,
+                    totalDurationMs = totalDurationMs,
+                    recordedAt = System.currentTimeMillis(),
+                    sourceWavPath = wav.absolutePath,
+                    numSpeakers = 1,
+                )
+
+                _transcript.value = result
+                _participants.value = app.protocolvoice.asr.Participants()
+                _phase.value = Phase.READY
+
+                // Автосохранение в историю
+                _currentSessionId.value = SessionStore.newId()
+                saveCurrentSession()
+                compressWavToM4aInBackground(wav)
+            } catch (e: Throwable) {
+                android.util.Log.e("InterviewViewModel", "runEnglishRecognition failed", e)
+                _phase.value = Phase.ERROR
+                _toast.value = "Ошибка EN распознавания: ${e.message?.take(80)}"
             }
         }
     }
@@ -679,102 +816,9 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
         recorder.release()
         asr.release()
         player.release()
+        try { enAsr?.release() } catch (_: Throwable) {}
+        enAsr = null
         super.onCleared()
-    }
-
-    /**
-     * Debug action: smoke-тест английского ASR (Whisper base.en).
-     *
-     * Последовательно:
-     *   1. Проверяет все 3 EN модели на диске. Если нет — скачивает (~152 МБ).
-     *   2. Инициализирует EnglishAsrService.
-     *   3. Читает тестовый WAV из assets/test_en.wav.
-     *   4. Прогоняет через Whisper.
-     *   5. Показывает результат в toast.
-     *
-     * Ожидаемый результат: "After early nightfall the yellow lamps would light up here and there..."
-     */
-    /**
-     * Debug action: распознать ПОСЛЕДНЮЮ ЗАПИСАННУЮ WAV-файл через английский ASR.
-     * Используется для проверки что Whisper работает с реальным микрофонным аудио,
-     * а не только с тестовым sample.
-     *
-     * Pre-condition: должна быть запись (phase = RECORDED), т.е. _wavFile.value != null.
-     * Если EN модели не скачаны — стартует скачивание автоматически.
-     */
-    fun transcribeLastRecordingAsEnglish(ctx: Context) {
-        val wav = _wavFile.value
-        if (wav == null || !wav.exists()) {
-            _toast.value = "EN test: нет записи. Сначала запиши и останови."
-            return
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val storage = ModelStorage(ctx)
-                val missing = ModelRegistry.EN_ASR_BUNDLE.filter { !storage.isValid(it, checkHash = false) }
-                if (missing.isNotEmpty()) {
-                    _toast.value = "EN test: скачиваю ${missing.size} моделей (~152 МБ)…"
-                    val downloader = ModelDownloader(storage)
-                    val ok = downloader.downloadAll(missing)
-                    if (!ok) {
-                        _toast.value = "EN test: FAIL — скачать не получилось"
-                        return@launch
-                    }
-                }
-
-                _toast.value = "EN test: загружаю Whisper…"
-                val enAsr = EnglishAsrService(ctx)
-                if (!enAsr.initialize()) {
-                    _toast.value = "EN test: FAIL — не удалось инициализировать Whisper"
-                    return@launch
-                }
-
-                // Читаем записанный WAV
-                _toast.value = "EN test: читаю запись…"
-                val samples = readWavFromFile(wav)
-                if (samples == null) {
-                    _toast.value = "EN test: FAIL — не удалось прочитать WAV"
-                    enAsr.release()
-                    return@launch
-                }
-                val durationSec = samples.size / 16_000
-
-                // Whisper имеет лимит ~30 сек на одну инференцию.
-                // Если запись длиннее — режем на 25-секундные куски и склеиваем.
-                _toast.value = "EN test: распознаю ${durationSec}с аудио…"
-                val t0 = System.currentTimeMillis()
-
-                val chunkSize = 25 * 16_000   // 25 секунд в сэмплах
-                val parts = mutableListOf<String>()
-                if (samples.size <= chunkSize) {
-                    val text = enAsr.transcribe(samples, sampleRate = 16_000)
-                    if (!text.isNullOrBlank()) parts.add(text)
-                } else {
-                    var offset = 0
-                    while (offset < samples.size) {
-                        val end = (offset + chunkSize).coerceAtMost(samples.size)
-                        val chunk = samples.copyOfRange(offset, end)
-                        val text = enAsr.transcribe(chunk, sampleRate = 16_000)
-                        if (!text.isNullOrBlank()) parts.add(text)
-                        offset = end
-                    }
-                }
-                val dt = System.currentTimeMillis() - t0
-                enAsr.release()
-
-                val fullText = parts.joinToString(" ").trim()
-                if (fullText.isBlank()) {
-                    _toast.value = "EN test: FAIL — пустой результат"
-                } else {
-                    val rtf = if (durationSec > 0) dt.toFloat() / (durationSec * 1000f) else 0f
-                    _toast.value = "EN OK (${dt}ms, RTF=${"%.2f".format(rtf)}): ${fullText.take(150)}"
-                    android.util.Log.i("EN_TEST", "Real recording transcript: $fullText")
-                }
-            } catch (e: Throwable) {
-                android.util.Log.e("EN_TEST", "transcribeLastRecordingAsEnglish failed", e)
-                _toast.value = "EN test: ИСКЛЮЧЕНИЕ ${e.message?.take(80)}"
-            }
-        }
     }
 
     /** Прочитать WAV (16kHz mono PCM16) с диска в FloatArray. */
@@ -791,81 +835,7 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
             }
             out
         } catch (e: Throwable) {
-            android.util.Log.e("EN_TEST", "readWavFromFile failed", e)
-            null
-        }
-    }
-
-    fun runEnglishAsrSmokeTest(ctx: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _toast.value = "EN test: проверяю модели…"
-                val storage = ModelStorage(ctx)
-
-                // Шаг 1: Проверяем наличие моделей, скачиваем недостающие
-                val missing = ModelRegistry.EN_ASR_BUNDLE.filter { !storage.isValid(it, checkHash = false) }
-                if (missing.isNotEmpty()) {
-                    _toast.value = "EN test: скачиваю ${missing.size} моделей (~152 МБ)…"
-                    val downloader = ModelDownloader(storage)
-                    val ok = downloader.downloadAll(missing)
-                    if (!ok) {
-                        _toast.value = "EN test: FAIL — скачать не получилось"
-                        return@launch
-                    }
-                }
-
-                _toast.value = "EN test: загружаю Whisper…"
-                val enAsr = EnglishAsrService(ctx)
-                val initOk = enAsr.initialize()
-                if (!initOk) {
-                    _toast.value = "EN test: FAIL — не удалось инициализировать Whisper"
-                    return@launch
-                }
-
-                // Шаг 2: Читаем тестовый WAV из assets
-                _toast.value = "EN test: читаю тестовый файл…"
-                val samples = readAssetWav(ctx, "test_en.wav")
-                if (samples == null) {
-                    _toast.value = "EN test: FAIL — test_en.wav не найден в assets"
-                    enAsr.release()
-                    return@launch
-                }
-
-                // Шаг 3: Распознаём
-                _toast.value = "EN test: распознаю (${samples.size / 16000}с аудио)…"
-                val t0 = System.currentTimeMillis()
-                val text = enAsr.transcribe(samples, sampleRate = 16_000)
-                val dt = System.currentTimeMillis() - t0
-                enAsr.release()
-
-                if (text.isNullOrBlank()) {
-                    _toast.value = "EN test: FAIL — пустой результат"
-                } else {
-                    _toast.value = "EN OK (${dt}ms): ${text.take(100)}"
-                    android.util.Log.i("EN_TEST", "Full text: $text")
-                }
-            } catch (e: Throwable) {
-                android.util.Log.e("EN_TEST", "smoke test failed", e)
-                _toast.value = "EN test: ИСКЛЮЧЕНИЕ ${e.message?.take(80)}"
-            }
-        }
-    }
-
-    /** Читает WAV-файл из assets в FloatArray (16kHz mono PCM16). */
-    private fun readAssetWav(ctx: Context, assetName: String): FloatArray? {
-        return try {
-            val bytes = ctx.assets.open(assetName).use { it.readBytes() }
-            // Пропускаем WAV header (44 байта), читаем PCM16 LE
-            val data = bytes.copyOfRange(44, bytes.size)
-            val numSamples = data.size / 2
-            val out = FloatArray(numSamples)
-            val bb = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-            for (i in 0 until numSamples) {
-                out[i] = bb.short.toFloat() / 32768f
-            }
-            out
-        } catch (e: Throwable) {
-            android.util.Log.e("EN_TEST", "readAssetWav failed", e)
+            android.util.Log.e("InterviewViewModel", "readWavFromFile failed", e)
             null
         }
     }
