@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ProtocolVoice</string>
+
+    <!-- =================================================== -->
+    <!-- Основной экран: TopBar, статусы, кнопки записи -->
+    <!-- =================================================== -->
+    <string name="title_main">Протокол интервью</string>
+    <string name="title_empty">без темы</string>
+
+    <!-- TopBar actions -->
+    <string name="action_history">История</string>
+    <string name="action_metadata">Шапка</string>
+    <string name="action_participants">Участники</string>
+    <string name="action_new_session">Новая запись</string>
+    <string name="action_overflow_menu">Ещё</string>
+    <string name="action_remove_from_history">Убрать из истории</string>
+    <string name="action_redownload_models">Перезагрузить модели…</string>
+    <string name="action_about">О программе</string>
+    <string name="action_share_docx">Отправить DOCX</string>
+    <string name="action_send">Отправить</string>
+    <string name="action_export_docx">Сохранить DOCX</string>
+    <string name="action_record">Запись</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_resume">Продолжить</string>
+    <string name="action_stop">Стоп</string>
+    <string name="action_process">Распознать</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_back">Назад</string>
+
+    <!-- Phase status card -->
+    <string name="phase_idle_title">Готов к записи</string>
+    <string name="phase_idle_subtitle">Нажмите «Запись» чтобы начать</string>
+    <string name="phase_recording_title">Идёт запись</string>
+    <string name="phase_paused_title">Пауза</string>
+    <string name="phase_recorded_title">Запись завершена</string>
+    <string name="phase_recorded_subtitle">Длительность %1$s. Нажмите «Распознать»</string>
+    <string name="phase_processing_title">Распознавание</string>
+    <string name="phase_processing_subtitle">Подготовка…</string>
+    <string name="phase_ready_title">Протокол готов</string>
+    <string name="phase_ready_subtitle">Можно править имена и сохранить DOCX</string>
+    <string name="phase_error_title">Ошибка</string>
+    <string name="phase_error_subtitle">Попробуйте начать сначала</string>
+
+    <!-- ASR processing stages -->
+    <string name="asr_stage_loading">загрузка моделей</string>
+    <string name="asr_stage_diarizing">разделение спикеров</string>
+    <string name="asr_stage_transcribing">распознавание речи</string>
+    <string name="asr_stage_done">готово</string>
+    <string name="asr_stage_error">ошибка</string>
+    <string name="asr_status_processing">Распознавание…</string>
+    <string name="asr_status_loading_models">Загрузка моделей…</string>
+    <string name="asr_status_diarizing">Определение спикеров…</string>
+    <string name="asr_status_recognizing">Распознавание речи…</string>
+    <string name="asr_status_models_loaded">Модели загружены</string>
+    <string name="asr_status_segment_progress">Распознавание сегмента %1$d/%2$d</string>
+    <string name="asr_status_done">Готово</string>
+
+    <!-- Player controls -->
+    <string name="player_play">Воспроизвести</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_play_segment">Воспроизвести сегмент</string>
+    <string name="player_error_load">Не удалось открыть файл записи</string>
+    <string name="player_error_play">Не удалось запустить проигрывание</string>
+    <string name="player_error_play_segment">Не удалось проиграть сегмент</string>
+    <string name="player_error_code">Ошибка проигрывания (код %1$d)</string>
+    <string name="player_error_audio_missing">Файл записи не найден</string>
+
+    <!-- Empty state hints -->
+    <string name="hint_idle">Перед записью можно заполнить шапку протокола и список участников через кнопки в правом верхнем углу.</string>
+    <string name="hint_recording">Идёт запись. Старайтесь не перекрывать микрофон, говорите по очереди.</string>
+    <string name="hint_paused">Запись приостановлена. «Продолжить» — возобновить, «Стоп» — завершить.</string>
+    <string name="hint_recorded">Запись готова. Нажмите «Распознать» — это займёт несколько минут.</string>
+    <string name="hint_processing">Распознавание выполняется на устройстве. Не закрывайте приложение.</string>
+    <string name="hint_transcript_empty">Транскрипт пуст.</string>
+    <string name="hint_error">Произошла ошибка. Нажмите «Новая запись» (кнопка обновления) чтобы начать заново.</string>
+
+    <!-- Speaker count selector -->
+    <string name="speaker_count_title">Спикеров</string>
+    <string name="speaker_count_single_label">1</string>
+    <string name="speaker_count_auto_label">Авто</string>
+    <string name="speaker_count_single_desc">Монолог — в 30× быстрее</string>
+    <string name="speaker_count_fixed_desc">ровно %1$d спикера</string>
+    <string name="speaker_count_auto_desc">Определить автоматически</string>
+
+    <!-- Embedding model selector -->
+    <string name="embedding_model_title">Модель разделения спикеров</string>
+    <string name="embedding_model_eres2net_name">ERes2Net</string>
+    <string name="embedding_model_eres2netv2_name">ERes2NetV2</string>
+    <string name="embedding_model_camplus_name">CAM++</string>
+    <string name="embedding_model_eres2net_size">111 МБ</string>
+    <string name="embedding_model_eres2netv2_size">68 МБ</string>
+    <string name="embedding_model_camplus_size">27 МБ</string>
+    <string name="embedding_model_eres2net_desc">Эталон качества, медленнее всех</string>
+    <string name="embedding_model_eres2netv2_desc">Улучшенная V2, быстрее V1</string>
+    <string name="embedding_model_camplus_desc">Самая быстрая, чуть проще</string>
+
+    <!-- =================================================== -->
+    <!-- Шапка протокола (MetadataEditor) -->
+    <!-- =================================================== -->
+    <string name="metadata_sheet_title">Шапка протокола</string>
+    <string name="metadata_sheet_subtitle">Эти поля попадут в шапку DOCX-протокола и в блок подписей.</string>
+    <string name="metadata_field_title">Тема интервью</string>
+    <string name="metadata_field_title_hint">например: Интервью с ответственным лицом</string>
+    <string name="metadata_field_location">Место проведения</string>
+    <string name="metadata_field_location_hint">например: офис компании, переговорная №1</string>
+    <string name="metadata_field_auditor">Аудитор / интервьюер</string>
+    <string name="metadata_field_auditor_hint">ФИО, должность</string>
+    <string name="metadata_field_notes">Примечания</string>
+    <string name="metadata_field_notes_hint">Контекст беседы, замечания, расхождения</string>
+
+    <!-- =================================================== -->
+    <!-- Участники (ParticipantsEditor) -->
+    <!-- =================================================== -->
+    <string name="participants_sheet_title">Участники</string>
+    <string name="participants_sheet_subtitle">Привяжите имена к спикерам — они появятся в протоколе.</string>
+    <string name="participants_no_speakers">Спикеры появятся после распознавания.</string>
+    <string name="participants_speaker_label">Спикер %1$d</string>
+    <string name="participants_speaker_default">Спикер %1$d</string>
+    <string name="participants_name_hint">ФИО, должность</string>
+
+    <!-- =================================================== -->
+    <!-- История (HistoryScreen) -->
+    <!-- =================================================== -->
+    <string name="history_title">История</string>
+    <string name="history_subtitle_empty">Пока нет записей</string>
+    <string name="history_subtitle_count">Записей: %1$d</string>
+    <string name="history_loading">Загрузка…</string>
+    <string name="history_empty_hint">Запишите интервью и нажмите «Распознать» — сессия автоматически появится здесь.</string>
+    <string name="history_empty_title">Пока пусто</string>
+    <string name="history_words_label">слов</string>
+    <string name="history_session_no_title">Без темы</string>
+    <string name="history_no_audio_chip">без аудио</string>
+
+    <!-- Delete dialog -->
+    <string name="history_delete_title">Удалить запись?</string>
+    <string name="history_delete_message">Будут удалены протокол и аудио-файл «%1$s». Это действие нельзя отменить.</string>
+
+    <!-- =================================================== -->
+    <!-- Toast / уведомления пользователя -->
+    <!-- =================================================== -->
+    <string name="toast_no_microphone_permission">Нет разрешения на микрофон</string>
+    <string name="recorder_no_permission">Нет разрешения на запись звука</string>
+    <string name="recorder_unsupported">Запись не поддерживается на этом устройстве</string>
+    <string name="recorder_init_failed">Не удалось инициализировать запись аудио</string>
+    <string name="recorder_start_error">Ошибка старта записи: %1$s</string>
+    <string name="recorder_save_error">Не удалось завершить файл записи: %1$s</string>
+    <string name="toast_record_start_failed">Не удалось начать запись</string>
+    <string name="toast_record_save_failed">Файл записи не сохранён</string>
+    <string name="toast_models_load_failed">Не удалось загрузить модели</string>
+    <string name="toast_recognize_failed">Ошибка распознавания</string>
+    <string name="toast_audio_unavailable">Аудио-файл недоступен</string>
+    <string name="toast_audio_missing">Аудио-файл был удалён — воспроизведение недоступно</string>
+    <string name="toast_session_load_failed">Не удалось загрузить запись</string>
+    <string name="toast_session_deleted">Запись удалена из истории</string>
+    <string name="toast_models_deleted">Модели удалены. Перезапускаем…</string>
+    <string name="toast_session_delete_failed">Не удалось удалить</string>
+    <string name="toast_docx_save_failed">Не удалось сохранить DOCX</string>
+    <string name="toast_docx_save_error">Ошибка сохранения: %1$s</string>
+    <string name="toast_export_done_with_audio">DOCX и аудио сохранены в Downloads/ProtocolVoice</string>
+    <string name="toast_export_done_compressing">DOCX сохранён. Аудио сжимается, повторите через минуту</string>
+    <string name="toast_export_done">DOCX сохранён в Downloads/ProtocolVoice</string>
+
+    <!-- =================================================== -->
+    <!-- Foreground notification (RecordingService) -->
+    <!-- =================================================== -->
+    <string name="notification_channel_recording">Запись интервью</string>
+    <string name="notification_recording_title">Идёт запись интервью</string>
+    <string name="notification_recording_text">Не закрывайте приложение</string>
+
+    <!-- Notifications: Download Service -->
+    <string name="notification_channel_download">Загрузка моделей</string>
+    <string name="notification_channel_download_desc">Уведомления о ходе загрузки моделей распознавания</string>
+    <string name="notification_download_title">Загрузка моделей</string>
+    <string name="notification_download_text">%1$d / %2$d МБ · %3$d КБ/с</string>
+    <string name="notification_download_starting">Начинаем загрузку…</string>
+    <string name="notification_download_cancel">Отменить</string>
+    <string name="notification_download_done_title">Модели готовы</string>
+    <string name="notification_download_done_text">Можно начинать работу</string>
+    <string name="notification_download_error_title">Ошибка загрузки</string>
+    <string name="notification_download_error_text">Откройте приложение чтобы повторить</string>
+
+    <!-- =================================================== -->
+    <!-- Permissions -->
+    <!-- =================================================== -->
+    <string name="permission_microphone_rationale">Для записи интервью нужен доступ к микрофону</string>
+    <string name="permission_microphone_denied">Без разрешения на микрофон запись невозможна. Откройте настройки приложения.</string>
+
+    <!-- =================================================== -->
+    <!-- ASR внутренние статусы (видят пользователя) -->
+    <!-- =================================================== -->
+    <string name="asr_load_failed">Ошибка загрузки моделей: %1$s</string>
+    <string name="asr_not_initialized">Модели не инициализированы</string>
+    <string name="asr_reading_wav">Чтение WAV-файла…</string>
+    <string name="asr_wav_read_failed">Не удалось прочитать WAV-файл</string>
+    <string name="asr_recognize_error">Ошибка распознавания: %1$s</string>
+
+    <!-- =================================================== -->
+    <!-- Дополнительные ключи (HistoryScreen, MetadataEditor, ParticipantsEditor) -->
+    <!-- =================================================== -->
+    <string name="participants_subtitle_pre_recognition">Можно ввести имена заранее — они автоматически свяжутся со спикерами после распознавания.</string>
+    <string name="participants_subtitle_recognized">Распознано спикеров: %1$d. Впишите ФИО и должность напротив каждого SPK_X.</string>
+    <string name="participants_add_more">Ещё спикер</string>
+    <string name="participants_title_alt">Участники интервью</string>
+
+    <!-- Default speaker label — выводится в UI когда у спикера нет введённого имени. -->
+    <string name="speaker_default_label">Спикер %1$d</string>
+
+    <!-- =================================================== -->
+    <!-- Downloader (экран скачивания моделей при первом запуске) -->
+    <!-- =================================================== -->
+    <string name="downloader_checking">Проверяем модели…</string>
+    <string name="downloader_welcome_title">Подготовка к работе</string>
+    <string name="downloader_welcome_message">Для работы оффлайн нужно разово скачать модели распознавания речи. После этого приложение работает без интернета.</string>
+    <string name="downloader_size_title">Размер загрузки</string>
+    <string name="downloader_size_value">%1$s — скачивается один раз</string>
+    <string name="downloader_start_action">Скачать модели</string>
+    <string name="downloader_downloading_title">Скачивание…</string>
+    <string name="downloader_speed">%1$s/с</string>
+    <string name="downloader_label_asr">Модель распознавания речи</string>
+    <string name="downloader_label_camplus">Модель разделения спикеров (CAM++)</string>
+    <string name="downloader_label_v1">Модель разделения спикеров (V1)</string>
+    <string name="downloader_label_v2">Модель разделения спикеров (V2)</string>
+    <string name="downloader_cancel">Отменить</string>
+    <string name="downloader_success_title">Готово!</string>
+    <string name="downloader_success_message">Модели скачаны. Можно начинать работу.</string>
+    <string name="downloader_error_title">Ошибка скачивания</string>
+    <string name="downloader_error_generic">Не удалось скачать модели. Проверьте подключение к интернету.</string>
+    <string name="downloader_retry">Повторить</string>
+
+    <!-- About / Acknowledgments screen -->
+    <string name="about_title">О программе</string>
+    <string name="about_app_name">ProtocolVoice</string>
+    <string name="about_tagline">Автономная расшифровка интервью</string>
+    <string name="about_version_label">Версия</string>
+    <string name="about_description">Оффлайновый диктофон с распознаванием речи и разделением говорящих для аудиторских интервью. Вся обработка происходит на устройстве — данные никуда не отправляются.</string>
+    <string name="about_section_acknowledgments">Используемые технологии</string>
+    <string name="about_ack_intro">Приложение использует следующие открытые ML-модели и библиотеки. Весь код и модели распространяются в соответствии с лицензиями оригинальных авторов.</string>
+    <string name="about_ack_gigaam_title">GigaAM — распознавание речи</string>
+    <string name="about_ack_gigaam_desc">Русская акустическая модель от SaluteDevices (Sber AI). Лицензия MIT.</string>
+    <string name="about_ack_gigaam_url">github.com/salute-developers/GigaAM</string>
+    <string name="about_ack_speaker_title">3D-Speaker — разделение говорящих</string>
+    <string name="about_ack_speaker_desc">Модели CAM++ и ERes2Net от ModelScope (Alibaba). Лицензия Apache 2.0.</string>
+    <string name="about_ack_speaker_url">github.com/modelscope/3D-Speaker</string>
+    <string name="about_ack_sherpa_title">sherpa-onnx</string>
+    <string name="about_ack_sherpa_desc">Он-девайс inference рунтайм от k2-fsa. Лицензия Apache 2.0.</string>
+    <string name="about_ack_sherpa_url">github.com/k2-fsa/sherpa-onnx</string>
+    <string name="about_ack_huggingface_title">Hugging Face</string>
+    <string name="about_ack_huggingface_desc">Хостинг ML-моделей, использованных в приложении.</string>
+    <string name="about_ack_huggingface_url">huggingface.co/protocolvoice/asr-models</string>
+    <string name="about_section_license">Лицензия</string>
+    <string name="about_license_text">Приложение распространяется под лицензией Apache 2.0. Исходный код доступен на GitHub.</string>
+    <string name="about_back">Назад</string>
+</resources>

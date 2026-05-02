@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ProtocolVoice</string>
+
+    <!-- =================================================== -->
+    <!-- Main screen: TopBar, status, recording controls -->
+    <!-- =================================================== -->
+    <string name="title_main">Interview Protocol</string>
+    <string name="title_empty">no topic</string>
+
+    <!-- TopBar actions -->
+    <string name="action_history">History</string>
+    <string name="action_metadata">Header</string>
+    <string name="action_participants">Participants</string>
+    <string name="action_new_session">New recording</string>
+    <string name="action_overflow_menu">More</string>
+    <string name="action_remove_from_history">Remove from history</string>
+    <string name="action_redownload_models">Re-download models…</string>
+    <string name="action_about">About</string>
+    <string name="action_share_docx">Share DOCX</string>
+    <string name="action_send">Share</string>
+    <string name="action_export_docx">Save DOCX</string>
+    <string name="action_record">Record</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_process">Transcribe</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_back">Back</string>
+
+    <!-- Phase status card -->
+    <string name="phase_idle_title">Ready to record</string>
+    <string name="phase_idle_subtitle">Tap “Record” to begin</string>
+    <string name="phase_recording_title">Recording</string>
+    <string name="phase_paused_title">Paused</string>
+    <string name="phase_recorded_title">Recording finished</string>
+    <string name="phase_recorded_subtitle">Duration %1$s. Tap “Transcribe”</string>
+    <string name="phase_processing_title">Transcribing</string>
+    <string name="phase_processing_subtitle">Preparing…</string>
+    <string name="phase_ready_title">Protocol ready</string>
+    <string name="phase_ready_subtitle">You can edit names and save the DOCX</string>
+    <string name="phase_error_title">Error</string>
+    <string name="phase_error_subtitle">Try starting over</string>
+
+    <!-- ASR processing stages -->
+    <string name="asr_stage_loading">loading models</string>
+    <string name="asr_stage_diarizing">separating speakers</string>
+    <string name="asr_stage_transcribing">transcribing</string>
+    <string name="asr_stage_done">done</string>
+    <string name="asr_stage_error">error</string>
+    <string name="asr_status_processing">Transcribing…</string>
+    <string name="asr_status_loading_models">Loading models…</string>
+    <string name="asr_status_diarizing">Identifying speakers…</string>
+    <string name="asr_status_recognizing">Recognising speech…</string>
+    <string name="asr_status_models_loaded">Models loaded</string>
+    <string name="asr_status_segment_progress">Transcribing segment %1$d/%2$d</string>
+    <string name="asr_status_done">Done</string>
+
+    <!-- Player controls -->
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_play_segment">Play segment</string>
+    <string name="player_error_load">Could not open the recording</string>
+    <string name="player_error_play">Could not start playback</string>
+    <string name="player_error_play_segment">Could not play this segment</string>
+    <string name="player_error_code">Playback error (code %1$d)</string>
+    <string name="player_error_audio_missing">Recording file not found</string>
+
+    <!-- Empty state hints -->
+    <string name="hint_idle">Before recording you can fill in the protocol header and the participants list using the buttons in the top right corner.</string>
+    <string name="hint_recording">Recording in progress. Try not to cover the microphone, take turns speaking.</string>
+    <string name="hint_paused">Recording is paused. “Resume” to continue, “Stop” to finish.</string>
+    <string name="hint_recorded">Recording is ready. Tap “Transcribe” — this will take a few minutes.</string>
+    <string name="hint_processing">Transcription runs on the device. Don’t close the app.</string>
+    <string name="hint_transcript_empty">Transcript is empty.</string>
+    <string name="hint_error">An error occurred. Tap “New recording” (refresh button) to start over.</string>
+
+    <!-- Speaker count selector -->
+    <string name="speaker_count_title">Speakers</string>
+    <string name="speaker_count_single_label">1</string>
+    <string name="speaker_count_auto_label">Auto</string>
+    <string name="speaker_count_single_desc">Monologue — 30× faster</string>
+    <string name="speaker_count_fixed_desc">exactly %1$d speakers</string>
+    <string name="speaker_count_auto_desc">Detect automatically</string>
+
+    <!-- Embedding model selector -->
+    <string name="embedding_model_title">Speaker separation model</string>
+    <string name="embedding_model_eres2net_name">ERes2Net</string>
+    <string name="embedding_model_eres2netv2_name">ERes2NetV2</string>
+    <string name="embedding_model_camplus_name">CAM++</string>
+    <string name="embedding_model_eres2net_size">111 MB</string>
+    <string name="embedding_model_eres2netv2_size">68 MB</string>
+    <string name="embedding_model_camplus_size">27 MB</string>
+    <string name="embedding_model_eres2net_desc">Reference quality, slowest</string>
+    <string name="embedding_model_eres2netv2_desc">Improved V2, faster than V1</string>
+    <string name="embedding_model_camplus_desc">Fastest, slightly simpler</string>
+
+    <!-- =================================================== -->
+    <!-- Protocol header (MetadataEditor) -->
+    <!-- =================================================== -->
+    <string name="metadata_sheet_title">Protocol header</string>
+    <string name="metadata_sheet_subtitle">These fields appear in the DOCX header and signature block.</string>
+    <string name="metadata_field_title">Interview topic</string>
+    <string name="metadata_field_title_hint">e.g. Interview with site supervisor</string>
+    <string name="metadata_field_location">Location</string>
+    <string name="metadata_field_location_hint">e.g. company office, meeting room №1</string>
+    <string name="metadata_field_auditor">Auditor / interviewer</string>
+    <string name="metadata_field_auditor_hint">Full name, position</string>
+    <string name="metadata_field_notes">Notes</string>
+    <string name="metadata_field_notes_hint">Context, observations, discrepancies</string>
+
+    <!-- =================================================== -->
+    <!-- Participants (ParticipantsEditor) -->
+    <!-- =================================================== -->
+    <string name="participants_sheet_title">Participants</string>
+    <string name="participants_sheet_subtitle">Match names to speakers — they will appear in the protocol.</string>
+    <string name="participants_no_speakers">Speakers will appear after transcription.</string>
+    <string name="participants_speaker_label">Speaker %1$d</string>
+    <string name="participants_speaker_default">Speaker %1$d</string>
+    <string name="participants_name_hint">Full name, position</string>
+
+    <!-- =================================================== -->
+    <!-- History screen -->
+    <!-- =================================================== -->
+    <string name="history_title">History</string>
+    <string name="history_subtitle_empty">No recordings yet</string>
+    <string name="history_subtitle_count">Recordings: %1$d</string>
+    <string name="history_loading">Loading…</string>
+    <string name="history_empty_hint">Record an interview and tap “Transcribe” — the session will appear here automatically.</string>
+    <string name="history_empty_title">Nothing here yet</string>
+    <string name="history_words_label">words</string>
+    <string name="history_session_no_title">No topic</string>
+    <string name="history_no_audio_chip">no audio</string>
+
+    <!-- Delete dialog -->
+    <string name="history_delete_title">Delete recording?</string>
+    <string name="history_delete_message">The protocol and audio file for “%1$s” will be deleted. This cannot be undone.</string>
+
+    <!-- =================================================== -->
+    <!-- Toasts / user notifications -->
+    <!-- =================================================== -->
+    <string name="toast_no_microphone_permission">Microphone permission required</string>
+    <string name="recorder_no_permission">No permission to record audio</string>
+    <string name="recorder_unsupported">Recording is not supported on this device</string>
+    <string name="recorder_init_failed">Could not initialise audio recording</string>
+    <string name="recorder_start_error">Failed to start recording: %1$s</string>
+    <string name="recorder_save_error">Could not finalise the recording file: %1$s</string>
+    <string name="toast_record_start_failed">Could not start recording</string>
+    <string name="toast_record_save_failed">Recording file was not saved</string>
+    <string name="toast_models_load_failed">Could not load models</string>
+    <string name="toast_recognize_failed">Transcription error</string>
+    <string name="toast_audio_unavailable">Audio file is not available</string>
+    <string name="toast_audio_missing">Audio file was deleted — playback unavailable</string>
+    <string name="toast_session_load_failed">Could not load the recording</string>
+    <string name="toast_session_deleted">Recording removed from history</string>
+    <string name="toast_models_deleted">Models deleted. Restarting…</string>
+    <string name="toast_session_delete_failed">Could not delete</string>
+    <string name="toast_docx_save_failed">Could not save DOCX</string>
+    <string name="toast_docx_save_error">Save error: %1$s</string>
+    <string name="toast_export_done_with_audio">DOCX and audio saved to Downloads/ProtocolVoice</string>
+    <string name="toast_export_done_compressing">DOCX saved. Audio is compressing, retry in a minute</string>
+    <string name="toast_export_done">DOCX saved to Downloads/ProtocolVoice</string>
+
+    <!-- =================================================== -->
+    <!-- Foreground notification (RecordingService) -->
+    <!-- =================================================== -->
+    <string name="notification_channel_recording">Interview recording</string>
+    <string name="notification_recording_title">Recording interview</string>
+    <string name="notification_recording_text">Don’t close the app</string>
+
+    <!-- Notifications: Download Service -->
+    <string name="notification_channel_download">Model download</string>
+    <string name="notification_channel_download_desc">Progress of recognition model downloads</string>
+    <string name="notification_download_title">Downloading models</string>
+    <string name="notification_download_text">%1$d / %2$d MB · %3$d KB/s</string>
+    <string name="notification_download_starting">Starting download…</string>
+    <string name="notification_download_cancel">Cancel</string>
+    <string name="notification_download_done_title">Models ready</string>
+    <string name="notification_download_done_text">You can start using the app</string>
+    <string name="notification_download_error_title">Download failed</string>
+    <string name="notification_download_error_text">Open the app to retry</string>
+
+    <!-- =================================================== -->
+    <!-- Permissions -->
+    <!-- =================================================== -->
+    <string name="permission_microphone_rationale">Microphone access is required to record interviews</string>
+    <string name="permission_microphone_denied">Without microphone permission recording is impossible. Open the app settings.</string>
+
+    <!-- =================================================== -->
+    <!-- ASR internal statuses (visible to the user) -->
+    <!-- =================================================== -->
+    <string name="asr_load_failed">Failed to load models: %1$s</string>
+    <string name="asr_not_initialized">Models are not initialised</string>
+    <string name="asr_reading_wav">Reading WAV file…</string>
+    <string name="asr_wav_read_failed">Could not read the WAV file</string>
+    <string name="asr_recognize_error">Transcription error: %1$s</string>
+
+    <!-- =================================================== -->
+    <!-- Additional keys (HistoryScreen, MetadataEditor, ParticipantsEditor) -->
+    <!-- =================================================== -->
+    <string name="participants_subtitle_pre_recognition">You can enter names ahead of time — they will be linked to speakers automatically after transcription.</string>
+    <string name="participants_subtitle_recognized">Recognised speakers: %1$d. Enter the full name and position next to each SPK_X.</string>
+    <string name="participants_add_more">Add speaker</string>
+    <string name="participants_title_alt">Interview participants</string>
+
+    <!-- Default speaker label — shown in the UI when a speaker has no name entered. -->
+    <string name="speaker_default_label">Speaker %1$d</string>
+
+    <!-- =================================================== -->
+    <!-- Downloader (model download screen on first launch) -->
+    <!-- =================================================== -->
+    <string name="downloader_checking">Checking models…</string>
+    <string name="downloader_welcome_title">Setting up</string>
+    <string name="downloader_welcome_message">To work offline you need to download the speech recognition models once. After that the app runs without internet.</string>
+    <string name="downloader_size_title">Download size</string>
+    <string name="downloader_size_value">%1$s — one-time download</string>
+    <string name="downloader_start_action">Download models</string>
+    <string name="downloader_downloading_title">Downloading…</string>
+    <string name="downloader_speed">%1$s/s</string>
+    <string name="downloader_label_asr">Speech recognition model</string>
+    <string name="downloader_label_camplus">Speaker separation model (CAM++)</string>
+    <string name="downloader_label_v1">Speaker separation model (V1)</string>
+    <string name="downloader_label_v2">Speaker separation model (V2)</string>
+    <string name="downloader_cancel">Cancel</string>
+    <string name="downloader_success_title">Done!</string>
+    <string name="downloader_success_message">Models downloaded. You can start working.</string>
+    <string name="downloader_error_title">Download error</string>
+    <string name="downloader_error_generic">Could not download the models. Check your internet connection.</string>
+    <string name="downloader_retry">Retry</string>
+
+    <!-- About / Acknowledgments screen -->
+    <string name="about_title">About</string>
+    <string name="about_app_name">ProtocolVoice</string>
+    <string name="about_tagline">Offline interview transcription</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_description">Offline voice recorder with on-device speech recognition and speaker diarization for audit interviews. All processing happens on the device — data never leaves your phone.</string>
+    <string name="about_section_acknowledgments">Technologies used</string>
+    <string name="about_ack_intro">This app uses the following open-source ML models and libraries. All code and models are distributed under the licenses of their original authors.</string>
+    <string name="about_ack_gigaam_title">GigaAM — speech recognition</string>
+    <string name="about_ack_gigaam_desc">Russian acoustic model by SaluteDevices (Sber AI). MIT license.</string>
+    <string name="about_ack_gigaam_url">github.com/salute-developers/GigaAM</string>
+    <string name="about_ack_speaker_title">3D-Speaker — speaker diarization</string>
+    <string name="about_ack_speaker_desc">CAM++ and ERes2Net models by ModelScope (Alibaba). Apache 2.0 license.</string>
+    <string name="about_ack_speaker_url">github.com/modelscope/3D-Speaker</string>
+    <string name="about_ack_sherpa_title">sherpa-onnx</string>
+    <string name="about_ack_sherpa_desc">On-device inference runtime by k2-fsa. Apache 2.0 license.</string>
+    <string name="about_ack_sherpa_url">github.com/k2-fsa/sherpa-onnx</string>
+    <string name="about_ack_huggingface_title">Hugging Face</string>
+    <string name="about_ack_huggingface_desc">Hosting for the ML models used by this app.</string>
+    <string name="about_ack_huggingface_url">huggingface.co/protocolvoice/asr-models</string>
+    <string name="about_section_license">License</string>
+    <string name="about_license_text">This app is distributed under the Apache 2.0 license. Source code is available on GitHub.</string>
+    <string name="about_back">Back</string>
+</resources>

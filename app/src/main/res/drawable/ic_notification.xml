@@ -1,0 +1,42 @@
+<!--
+  Notification icon — белый силуэт ProtocolVoice для status bar.
+  Android требует именно силуэт без цветов/градиентов, иначе на цветных фонах
+  системы (Android 5+) превратится в белое пятно. Вся цветовая идентика —
+  через android:color метаданные приложения, не в самом drawable.
+
+  Размер 24x24 dp = стандарт для notification icon.
+  ViewportSize 24x24 — рисуем в системе координат 0..24.
+
+  Геометрия:
+    - Буква P: вертикальная линия (стержень) + полукруг сверху-справа
+    - Внутри полукруга P: 3 короткие вертикальные чёрточки
+      имитирующие audio waveform
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Стержень буквы P (вертикальная линия слева) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,3 L5,21 L7.5,21 L7.5,3 Z" />
+
+    <!-- Верхняя петля P — полукруг открытый влево.
+         Используем дугу через два control point. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7.5,3 L13,3 C16.5,3 19,5.5 19,9 C19,12.5 16.5,15 13,15 L7.5,15 L7.5,12.5 L13,12.5 C15,12.5 16.5,11 16.5,9 C16.5,7 15,5.5 13,5.5 L7.5,5.5 Z" />
+
+    <!-- Audio waveform — 3 коротких столбика внутри петли P -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,7 L10,11 L11,11 L11,7 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.5,5.5 L12.5,12.5 L13.5,12.5 L13.5,5.5 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M15,8 L15,10 L16,10 L16,8 Z" />
+</vector>

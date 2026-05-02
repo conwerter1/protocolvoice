@@ -1,0 +1,72 @@
+# =============================================================
+# ProtocolVoice — .gitignore
+# =============================================================
+# IMPORTANT: эти правила защищают от случайного коммита
+# огромных моделей (305 МБ ASR + 200+ МБ embeddings)
+# и приватных данных.
+
+# === Android build artifacts ===
+*.apk
+*.aab
+*.ap_
+*.aar.bak
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# === IDE files ===
+.idea/
+*.iml
+.DS_Store
+local.properties
+
+# === Большие модели ONNX ===
+# Эти файлы должны лежать на Hugging Face, НЕ в коде!
+# Публикация моделей — отдельный процесс (huggingface.co/protocolvoice/asr-models).
+app/src/main/assets/asr/gigaam_v3_e2e_ctc_int8.onnx
+app/src/main/assets/asr/speaker_embedding.onnx
+app/src/main/assets/asr/speaker_embedding_camplus.onnx
+app/src/main/assets/asr/speaker_embedding_v2.onnx
+
+# Local backup of large models (during development) — не коммитить
+app/src/main/assets_backup_large_models/
+
+# === Маленькие модели — оставляем в репо (общий объём ~2 МБ) ===
+# !app/src/main/assets/asr/segmentation.onnx
+# !app/src/main/assets/asr/silero_vad.onnx
+# !app/src/main/assets/asr/gigaam_v3_e2e_ctc_tokens.txt
+
+# === Sherpa-onnx AAR ===
+# Включён в репо (~36 МБ) — чтобы clone+build работал без дополнительных шагов.
+# app/libs/sherpa-onnx.aar
+
+# === Build/dev logs (генерируются локально) ===
+build_log.txt
+*.bak
+*.tmp
+*.bat
+
+# === Personal/internal documentation ===
+HANDOFF.md
+DOWNLOADER_STATUS.md
+DOWNLOADER_PROGRESS.md
+*_internal/
+.private/
+
+# === Test recordings, exports ===
+recordings/
+exports/
+*.wav
+*.m4a
+*.docx
+
+# === Python cache ===
+__pycache__/
+*.pyc
+*.pyo
+
+# === Native libraries (если оставлены в репо) ===
+# Раскомментируй если нужно
+# *.so

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Главная тема приложения.
+      Параметры windowSplashScreen* — это Android 12+ Splash Screen API.
+      На Android 11 и ниже splash будет дефолтным (системная заглушка),
+      на Android 12+ — наш брендированный.
+    -->
+    <style name="Theme.ProtocolVoice" parent="Theme.SplashScreen">
+        <!-- Цвет фона splash экрана — наш тёмный navy (соответствует иконке) -->
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+
+        <!-- Иконка на splash экране. Adaptive icon foreground (без фона —
+             фон даём через windowSplashScreenBackground) -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+
+        <!-- Длительность визуальной паузы splash до показа MainActivity (мс).
+             Реальная длительность ~ это время + время инициализации Activity. -->
+        <item name="windowSplashScreenAnimationDuration">200</item>
+
+        <!-- Тема в которую переключаемся ПОСЛЕ splash (наш обычный UI) -->
+        <item name="postSplashScreenTheme">@style/Theme.ProtocolVoice.NoSplash</item>
+    </style>
+
+    <!-- Основная тема UI (без splash). Используется в Activity.theme -->
+    <style name="Theme.ProtocolVoice.NoSplash" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Базовая тема Material Light без ActionBar — Compose сам всё рисует -->
+    </style>
+</resources>

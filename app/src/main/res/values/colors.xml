@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive icon background — тёмный navy в тон иконке.
+         Хорошо смотрится в любой системной маске (квадрат/круг/squircle). -->
+    <color name="ic_launcher_background">#0A0E1A</color>
+</resources>

@@ -1,0 +1,26 @@
+{
+  "version": "models-v1.0",
+  "generated_with": "tools/compute_model_hashes.py",
+  "models": {
+    "asr_gigaam_v3": {
+      "filename": "gigaam_v3_e2e_ctc_int8.onnx",
+      "size_bytes": 319869121,
+      "sha256": "0aacb41f70f0f5aaac4b45dd430337b9e16b180f22c72af04db8516e7609c3c0"
+    },
+    "embedding_camplus": {
+      "filename": "speaker_embedding_camplus.onnx",
+      "size_bytes": 28281138,
+      "sha256": "f682b514c05d947ee3fa91cd6ec6c5c7543479a128373fa29b1faedccd21fd11"
+    },
+    "embedding_v1": {
+      "filename": "speaker_embedding.onnx",
+      "size_bytes": 116058710,
+      "sha256": "19547e85b6c14ec44b8add4e7cb9ce353c7e995d4f1c9ffd408176ac3a2d6895"
+    },
+    "embedding_v2": {
+      "filename": "speaker_embedding_v2.onnx",
+      "size_bytes": 71441526,
+      "sha256": "bf1a75b9930474cf3389ef415e6e5d38ca96fea4a3a00f7e301d080a58ee2239"
+    }
+  }
+}
