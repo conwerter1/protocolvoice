@@ -492,6 +492,55 @@ class AsrService(private val ctx: Context) {
         return 0    // продолжить
     }
 
+    /**
+     * Диаризация без распознавания. Используется для EN-пайплайна:
+     * клиент получает сегменты (спикер + временные рамки) и прогоняет их
+     * через внешний ASR (Whisper).
+     *
+     * Диаризация language-agnostic — работает одинаково хорошо для любого языка.
+     *
+     * @return list of (start_seconds, end_seconds, speaker_id), или null в случае ошибки
+     */
+    suspend fun diarizeOnly(samples: FloatArray, speakerMode: SpeakerCountMode = SpeakerCountMode.Auto): List<DiarizationSegment>? = withContext(Dispatchers.IO) {
+        val diar = diarization
+        if (diar == null) {
+            _errorMessage.value = ctx.getString(R.string.asr_not_initialized)
+            return@withContext null
+        }
+        try {
+            applyClusteringConfig(diar, speakerMode)
+            val segs = diar.processWithCallback(
+                samples = samples,
+                callback = ::diarizationCallback,
+                arg = 0L,
+            )
+            segs.map { DiarizationSegment(it.start, it.end, it.speaker) }
+        } catch (e: Throwable) {
+            Log.e(TAG, "diarizeOnly failed", e)
+            null
+        }
+    }
+
+    /** Публичный обёрточный тип для sherpa-onnx сегмента диаризации. */
+    data class DiarizationSegment(
+        /** Начало сегмента в секундах. */
+        val start: Float,
+        /** Конец сегмента в секундах. */
+        val end: Float,
+        /** ID спикера (0, 1, 2, ...). */
+        val speaker: Int,
+    )
+
+    /** Публичный вызов чтения WAV. Нужен клиентам которые берут самплы для EN-пайплайна. */
+    fun readWavSamples(wavFile: File): FloatArray? = readWavFile(wavFile)
+
+    /** Публичный сеттер фазы/прогресса для EN-пайплайна. */
+    fun setExternalState(state: State, statusText: String, progress: Float) {
+        _state.value = state
+        _statusText.value = statusText
+        _progress.value = progress.coerceIn(0f, 1f)
+    }
+
     fun release() {
         try { recognizer?.release() } catch (_: Throwable) {}
         try { diarization?.release() } catch (_: Throwable) {}

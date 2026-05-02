@@ -1,5 +1,6 @@
 ﻿package app.protocolvoice.ui
 
+import android.util.Log
 import android.app.Application
 import android.content.ContentValues
 import android.content.Context
@@ -26,6 +27,7 @@ import app.protocolvoice.asr.InterviewMetadata
 import app.protocolvoice.asr.InterviewTranscript
 import app.protocolvoice.asr.Participants
 import app.protocolvoice.asr.SpeakerCountMode
+import app.protocolvoice.asr.TranscriptSegment
 import app.protocolvoice.audio.AudioPlayer
 import app.protocolvoice.audio.AudioRecorder
 import app.protocolvoice.audio.Mp4Encoder
@@ -367,12 +369,16 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * EN-ветка распознавания — использует Whisper base.en вместо GigaAM.
+     * EN-ветка распознавания — Whisper base.en + диаризация.
      *
-     * В версии 1.0 это всегда single-speaker (без диаризации), т.к. Whisper имеет
-     * лимит ~30 сек на инференцию — режем запись на 25-сек куски и склеиваем.
+     * Пайплайн:
+     *   1. Читаем WAV в FloatArray
+     *   2. Диаризация (language-agnostic) через основной AsrService → сегменты [start, end, speakerId]
+     *   3. Для каждого сегмента — Whisper.transcribe()
+     *   4. Сливаем в InterviewTranscript с правильными speakerId и timestamps
      *
-     * Multi-speaker EN (интеграция Whisper с diarization) — реализуется в Шаге 3.
+     * Whisper имеет лимит ~30 сек на инференцию. Диаризация обычно даёт сегменты короче
+     * 30 сек, но если кто-то говорит без пауз дольше — добавляем sub-чанкинг.
      */
     private fun runEnglishRecognition(wav: File) {
         viewModelScope.launch {
@@ -386,6 +392,14 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
 
+            // Инициализируем основной AsrService — он даёт diarization
+            // (recognizer тоже загружается, но это приемлемый overhead)
+            if (!asr.initialize(_embeddingModel.value)) {
+                _phase.value = Phase.ERROR
+                _toast.value = "Не удалось загрузить модели диаризации."
+                return@launch
+            }
+
             val enAsrSvc = ensureEnAsr(ctx)
             if (enAsrSvc == null) {
                 _phase.value = Phase.ERROR
@@ -393,48 +407,86 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
 
+            val procT0 = System.currentTimeMillis()
             try {
-                val samples = withContext(Dispatchers.IO) { readWavFromFile(wav) }
+                // === Шаг 1: Читаем WAV ===
+                asr.setExternalState(AsrService.State.LOADING_MODELS, ctx.getString(R.string.asr_reading_wav), 0f)
+                val samples = withContext(Dispatchers.IO) { asr.readWavSamples(wav) }
                 if (samples == null || samples.isEmpty()) {
                     _phase.value = Phase.ERROR
                     _toast.value = "Не удалось прочитать запись."
                     return@launch
                 }
-
                 val totalDurationMs = (samples.size * 1000L) / 16_000L
+                asr.setExternalState(AsrService.State.LOADING_MODELS, "", 0.05f)
 
-                // Чанкинг: режем на 25-секундные куски
-                val chunkSize = 25 * 16_000
-                val parts = mutableListOf<Pair<Long, String>>() // (offsetMs, text)
-
-                if (samples.size <= chunkSize) {
-                    val text = enAsrSvc.transcribe(samples, sampleRate = 16_000)
-                    if (!text.isNullOrBlank()) parts.add(0L to text.trim())
+                // === Шаг 2: Диаризация (если Single — пропускаем) ===
+                val mode = _speakerCountMode.value
+                val diarSegs: List<AsrService.DiarizationSegment> = if (mode is SpeakerCountMode.Single) {
+                    Log.i("InterviewViewModel", "EN: skip diarization (mode=Single)")
+                    listOf(AsrService.DiarizationSegment(0f, totalDurationMs / 1000f, 0))
                 } else {
-                    var offset = 0
-                    while (offset < samples.size) {
-                        val end = (offset + chunkSize).coerceAtMost(samples.size)
-                        val chunk = samples.copyOfRange(offset, end)
-                        val text = enAsrSvc.transcribe(chunk, sampleRate = 16_000)
-                        val offsetMs = (offset.toLong() * 1000L) / 16_000L
-                        if (!text.isNullOrBlank()) parts.add(offsetMs to text.trim())
-                        offset = end
+                    asr.setExternalState(AsrService.State.DIARIZING, ctx.getString(R.string.asr_status_diarizing), 0.1f)
+                    val diarT0 = System.currentTimeMillis()
+                    val segs = asr.diarizeOnly(samples, mode)
+                    if (segs == null) {
+                        _phase.value = Phase.ERROR
+                        _toast.value = "Ошибка диаризации."
+                        return@launch
                     }
+                    Log.i("InterviewViewModel", "EN diarization: ${segs.size} segs in ${System.currentTimeMillis() - diarT0}ms, speakers=${segs.map { it.speaker }.distinct().sorted()}")
+                    if (segs.isEmpty()) {
+                        // Fallback — нет речи. Обрабатываем всё как single-speaker.
+                        listOf(AsrService.DiarizationSegment(0f, totalDurationMs / 1000f, 0))
+                    } else segs
                 }
+                asr.setExternalState(AsrService.State.TRANSCRIBING, ctx.getString(R.string.asr_status_recognizing), 0.4f)
 
-                if (parts.isEmpty()) {
-                    _phase.value = Phase.ERROR
-                    _toast.value = "Whisper вернул пустой результат. Возможно в записи нет речи."
-                    return@launch
-                }
+                // === Шаг 3: Whisper на каждом сегменте ===
+                val WHISPER_CHUNK_SEC = 25  // лимит Whisper ~30 сек, держимся ниже
+                val chunkSize = WHISPER_CHUNK_SEC * 16_000
+                val resultSegments = mutableListOf<TranscriptSegment>()
 
-                // Собираем InterviewTranscript из результатов Whisper.
-                // В версии 1.0 все сегменты — «Спикер 0» (single-speaker).
-                val segments = parts.map { (offsetMs, text) ->
-                    val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
-                    val perWordMs = if (words.isEmpty()) 0L else (chunkSize.toLong() * 1000L / 16_000L) / words.size.coerceAtLeast(1)
+                for ((idx, ds) in diarSegs.withIndex()) {
+                    val startSample = (ds.start * 16_000f).toInt().coerceAtLeast(0)
+                    val endSample = (ds.end * 16_000f).toInt().coerceAtMost(samples.size)
+                    if (endSample <= startSample) continue
+                    if (endSample - startSample < 16_000 * 0.2f) continue  // игнорируем <0.2s
+
+                    val segSamples = samples.copyOfRange(startSample, endSample)
+                    val startMs = (ds.start * 1000f).toLong()
+                    val endMs = (ds.end * 1000f).toLong()
+
+                    asr.setExternalState(
+                        AsrService.State.TRANSCRIBING,
+                        ctx.getString(R.string.asr_status_segment_progress, idx + 1, diarSegs.size),
+                        0.4f + (idx + 1).toFloat() / diarSegs.size * 0.6f,
+                    )
+
+                    // Если сегмент длиннее 25с — режем на sub-чанки
+                    val segText = if (segSamples.size <= chunkSize) {
+                        enAsrSvc.transcribe(segSamples, sampleRate = 16_000) ?: ""
+                    } else {
+                        val parts = mutableListOf<String>()
+                        var off = 0
+                        while (off < segSamples.size) {
+                            val e = (off + chunkSize).coerceAtMost(segSamples.size)
+                            val chunk = segSamples.copyOfRange(off, e)
+                            val t = enAsrSvc.transcribe(chunk, sampleRate = 16_000)
+                            if (!t.isNullOrBlank()) parts.add(t.trim())
+                            off = e
+                        }
+                        parts.joinToString(" ")
+                    }
+
+                    val cleanText = segText.trim()
+                    if (cleanText.isBlank()) continue
+
+                    // Разбиваем текст на слова и оцениваем timestamps для каждого
+                    val words = cleanText.split(Regex("\\s+")).filter { it.isNotBlank() }
+                    val perWordMs = if (words.isEmpty()) 0L else (endMs - startMs) / words.size.coerceAtLeast(1)
                     val transcriptWords = mutableListOf<app.protocolvoice.asr.TranscriptWord>()
-                    var cursor = offsetMs
+                    var cursor = startMs
                     for (w in words) {
                         val confidence = when {
                             w.length >= 5 -> 0.92f
@@ -450,32 +502,43 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
                         ))
                         cursor += perWordMs
                     }
-                    app.protocolvoice.asr.TranscriptSegment(
-                        speakerId = 0,
-                        startMs = offsetMs,
-                        endMs = (offsetMs + chunkSize.toLong() * 1000L / 16_000L).coerceAtMost(totalDurationMs),
+
+                    resultSegments.add(TranscriptSegment(
+                        speakerId = ds.speaker,
+                        startMs = startMs,
+                        endMs = endMs,
                         words = transcriptWords,
-                    )
+                    ))
                 }
 
+                if (resultSegments.isEmpty()) {
+                    _phase.value = Phase.ERROR
+                    _toast.value = "Whisper вернул пустой результат. Возможно в записи нет речи."
+                    return@launch
+                }
+
+                val numSpeakers = resultSegments.map { it.speakerId }.distinct().size
+                val totalMs = System.currentTimeMillis() - procT0
+                Log.i("InterviewViewModel", "PERF EN: audio=${totalDurationMs}ms wall=${totalMs}ms RTF=${"%.2f".format(totalMs.toFloat() / totalDurationMs)} speakers=$numSpeakers segments=${resultSegments.size}")
+
                 val result = app.protocolvoice.asr.InterviewTranscript(
-                    segments = segments,
+                    segments = resultSegments,
                     totalDurationMs = totalDurationMs,
                     recordedAt = System.currentTimeMillis(),
                     sourceWavPath = wav.absolutePath,
-                    numSpeakers = 1,
+                    numSpeakers = numSpeakers,
                 )
 
                 _transcript.value = result
                 _participants.value = app.protocolvoice.asr.Participants()
                 _phase.value = Phase.READY
+                asr.setExternalState(AsrService.State.DONE, ctx.getString(R.string.asr_status_done), 1f)
 
-                // Автосохранение в историю
                 _currentSessionId.value = SessionStore.newId()
                 saveCurrentSession()
                 compressWavToM4aInBackground(wav)
             } catch (e: Throwable) {
-                android.util.Log.e("InterviewViewModel", "runEnglishRecognition failed", e)
+                Log.e("InterviewViewModel", "runEnglishRecognition failed", e)
                 _phase.value = Phase.ERROR
                 _toast.value = "Ошибка EN распознавания: ${e.message?.take(80)}"
             }
