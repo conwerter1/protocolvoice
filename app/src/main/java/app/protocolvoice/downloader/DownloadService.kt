@@ -116,7 +116,12 @@ class DownloadService : Service() {
 
         downloadJob = scope.launch {
             try {
-                val ok = downloader.downloadAll(ModelRegistry.FIRST_RUN_REQUIRED)
+                // Читаем выбранный язык из prefs (RU/EN) и определяем какие модели качать.
+                // Существующие модели другого языка НЕ удаляются.
+                val language = storage.readSelectedLanguage()
+                val modelsToDownload = ModelRegistry.firstRunModelsFor(language)
+                Log.i(TAG, "Downloading ${modelsToDownload.size} models for language=$language")
+                val ok = downloader.downloadAll(modelsToDownload)
                 if (ok) {
                     Log.i(TAG, "Download completed successfully")
                     _serviceState.value = ServiceState.SUCCESS

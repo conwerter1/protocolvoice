@@ -224,6 +224,12 @@
     <string name="downloader_label_camplus">Модель разделения спикеров (CAM++)</string>
     <string name="downloader_label_v1">Модель разделения спикеров (V1)</string>
     <string name="downloader_label_v2">Модель разделения спикеров (V2)</string>
+    <!-- Выход из Downloader без скачивания -->
+    <string name="downloader_exit">Выйти</string>
+    <string name="downloader_exit_dialog_title">Закрыть приложение?</string>
+    <string name="downloader_exit_dialog_message">Без скачанных моделей приложение не может работать. При следующем запуске вы снова увидите этот экран. Закрыть всё равно?</string>
+    <string name="downloader_exit_dialog_confirm">Да, закрыть</string>
+    <string name="downloader_exit_dialog_dismiss">Остаться</string>
     <string name="downloader_cancel">Отменить</string>
     <string name="downloader_success_title">Готово!</string>
     <string name="downloader_success_message">Модели скачаны. Можно начинать работу.</string>

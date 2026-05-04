@@ -73,6 +73,7 @@ class MainActivity : AppCompatActivity() {
                     when (screen) {
                         Screen.DOWNLOADER -> DownloaderScreen(
                             onComplete = { screen = Screen.MAIN },
+                            onExit = { finish() },
                         )
                         Screen.MAIN -> {
                             // Создаём InterviewViewModel только когда нужен — после downloader'а.

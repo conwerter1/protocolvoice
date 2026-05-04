@@ -194,13 +194,30 @@ object ModelRegistry {
         ASR_EN_TOKENS,
     )
 
-    /** Модели для first-run скачивания (REQUIRED + DEFAULT_EMBEDDING) ~332 MB */
+    /** Модели для first-run скачивания (REQUIRED + DEFAULT_EMBEDDING) ~332 MB.
+     *  Прежняя статическая версия — для RU сценария. Оставлена для обратной совместимости. */
     val FIRST_RUN_REQUIRED: List<Model> = ALL.filter {
         it.tier == Tier.REQUIRED || it.tier == Tier.DEFAULT_EMBEDDING
     }
 
-    /** Сумма байт для first-run загрузки. Для UI прогресса. */
+    /** Сумма байт для first-run загрузки (RU сценарий). */
     val FIRST_RUN_TOTAL_BYTES: Long = FIRST_RUN_REQUIRED.sumOf { it.sizeBytes }
+
+    /**
+     * Модели для first-run скачивания с учётом выбранного языка:
+     *   - "RU" (или null/пустое) → GigaAM-v3 + camplus = ~332 MB
+     *   - "EN"                     → Whisper base.en + camplus = ~180 MB
+     *
+     * Диаризация (camplus) нужна для обоих языков, поэтому входит в оба набора.
+     */
+    fun firstRunModelsFor(language: String?): List<Model> = when (language) {
+        "EN" -> EN_ASR_BUNDLE + EMBEDDING_CAMPLUS
+        else -> listOf(ASR_MAIN, EMBEDDING_CAMPLUS)   // RU или default
+    }
+
+    /** Сумма байт для first-run с учётом языка. */
+    fun firstRunTotalBytesFor(language: String?): Long =
+        firstRunModelsFor(language).sumOf { it.sizeBytes }
 
     /** Найти модель по id. */
     fun byId(id: String): Model? = ALL.find { it.id == id }

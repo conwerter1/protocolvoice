@@ -82,19 +82,21 @@ class ModelStorage(private val ctx: Context) {
     }
 
     /**
-     * Все ли REQUIRED + DEFAULT_EMBEDDING модели есть на диске.
+     * Проверяет все ли модели для выбранного языка есть на диске.
      * Это критерий для решения "показать onboarding или нет".
      *
-     * Если модели лежат в APK assets (debug-сборка с bundled моделями) и нет в filesDir,
-     * их нужно скопировать в filesDir и вернуть true — так Downloader не покажется.
-     * Это «fallback» логика для F-Droid и дев-сборок.
+     * Язык берётся из SharedPreferences "interview_prefs" ключ "asr_language":
+     *   - "RU" → GigaAM-v3 + camplus = ~332 MB
+     *   - "EN" → Whisper base.en + camplus = ~180 MB
+     *   - null/другое → RU (default)
      *
-     * Флаг "force_downloader" в SharedPreferences отключает fallback на один запуск
-     * (используется debug-действием "Перезагрузить модели" для тестирования скачивания).
-     * Флаг сбрасывается после проверки — второй рестарт вернётся к обычному поведению.
+     * Существующие скачанные модели другого языка НЕ удаляются. При переключении
+     * языка в About экране догружаются недостающие.
      */
     fun isFirstRunComplete(ctx: Context? = null): Boolean {
-        val allInFilesDir = ModelRegistry.FIRST_RUN_REQUIRED.all { isValid(it, checkHash = false) }
+        val language = readSelectedLanguage()
+        val required = ModelRegistry.firstRunModelsFor(language)
+        val allInFilesDir = required.all { isValid(it, checkHash = false) }
         if (allInFilesDir) return true
 
         // Fallback: проверяем есть ли модели в APK assets и при наличии — копируем в filesDir.
@@ -102,9 +104,6 @@ class ModelStorage(private val ctx: Context) {
         if (ctx == null) return false
 
         // Дебажный флаг: если «force_downloader» взведён — пропускаем assets fallback.
-        // НЕ сбрасываем флаг здесь — эта функция может вызываться несколько раз
-        // при старте (MainActivity + DownloaderViewModel.checkInitialState).
-        // Сброс флага делаем явно через clearForceDownloaderFlag() после успеха скачивания.
         val prefs = ctx.getSharedPreferences("downloader_prefs", Context.MODE_PRIVATE)
         if (prefs.getBoolean("force_downloader", false)) {
             Log.i(TAG, "force_downloader flag set — skipping assets fallback")
@@ -113,11 +112,11 @@ class ModelStorage(private val ctx: Context) {
 
         val assetMgr = ctx.assets
         val available = try { assetMgr.list("asr")?.toSet() ?: emptySet() } catch (_: Throwable) { emptySet() }
-        val missing = ModelRegistry.FIRST_RUN_REQUIRED.filter { !isValid(it, checkHash = false) }
+        val missing = required.filter { !isValid(it, checkHash = false) }
         // Проверяем что ВСЕ недостающие есть в assets — иначе не смысла копировать часть.
         if (!missing.all { it.filename in available }) return false
 
-        // Копируем. На девайсе это ~30 сек для 332 MB — приемлемо для одноразовой операции.
+        // Копируем.
         try {
             for (model in missing) {
                 val target = fileFor(model)
@@ -127,11 +126,17 @@ class ModelStorage(private val ctx: Context) {
                 }
                 Log.i(TAG, "Copied ${model.filename}: ${target.length()} bytes")
             }
-            return ModelRegistry.FIRST_RUN_REQUIRED.all { isValid(it, checkHash = false) }
+            return required.all { isValid(it, checkHash = false) }
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to copy models from assets: ${e.message}", e)
             return false
         }
+    }
+
+    /** Чтение выбранного языка из SharedPreferences. */
+    fun readSelectedLanguage(): String {
+        val prefs = ctx.getSharedPreferences("interview_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("asr_language", "RU") ?: "RU"
     }
 
     /**
@@ -158,9 +163,11 @@ class ModelStorage(private val ctx: Context) {
 
     /**
      * Сколько байт уже скачано из first-run набора (для прогресса при возобновлении).
+     * Учитывает выбранный язык из prefs.
      */
     fun firstRunBytesDownloaded(): Long {
-        return ModelRegistry.FIRST_RUN_REQUIRED.sumOf { model ->
+        val language = readSelectedLanguage()
+        return ModelRegistry.firstRunModelsFor(language).sumOf { model ->
             val f = fileFor(model)
             val partial = partialFileFor(model)
             when {

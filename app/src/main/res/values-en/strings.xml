@@ -224,6 +224,12 @@
     <string name="downloader_label_camplus">Speaker separation model (CAM++)</string>
     <string name="downloader_label_v1">Speaker separation model (V1)</string>
     <string name="downloader_label_v2">Speaker separation model (V2)</string>
+    <!-- Exit from Downloader without download -->
+    <string name="downloader_exit">Exit</string>
+    <string name="downloader_exit_dialog_title">Close the app?</string>
+    <string name="downloader_exit_dialog_message">Without downloaded models the app cannot work. The next time you launch it, you will see this screen again. Close anyway?</string>
+    <string name="downloader_exit_dialog_confirm">Yes, close</string>
+    <string name="downloader_exit_dialog_dismiss">Stay</string>
     <string name="downloader_cancel">Cancel</string>
     <string name="downloader_success_title">Done!</string>
     <string name="downloader_success_message">Models downloaded. You can start working.</string>

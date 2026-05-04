@@ -17,20 +17,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +76,7 @@ import app.protocolvoice.ui.theme.RecordingRed
 fun DownloaderScreen(
     vm: DownloaderViewModel = viewModel(),
     onComplete: () -> Unit,
+    onExit: () -> Unit = {},
 ) {
     val phase by vm.phase.collectAsStateWithLifecycle()
     val progress by vm.progress.collectAsStateWithLifecycle()
@@ -74,6 +85,34 @@ fun DownloaderScreen(
     val speedBps by vm.speedBps.collectAsStateWithLifecycle()
     val currentModelId by vm.currentModelId.collectAsStateWithLifecycle()
     val errorMessage by vm.errorMessage.collectAsStateWithLifecycle()
+
+    // Состояние диалога подтверждения выхода
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    // Состояние menu выбора языка
+    var showLanguageMenu by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text(stringResource(R.string.downloader_exit_dialog_title)) },
+            text = { Text(stringResource(R.string.downloader_exit_dialog_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitDialog = false
+                    onExit()
+                }) {
+                    Text(stringResource(R.string.downloader_exit_dialog_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text(stringResource(R.string.downloader_exit_dialog_dismiss))
+                }
+            },
+        )
+    }
 
     // Авто-переход когда модели уже скачаны при старте
     LaunchedEffect(phase) {
@@ -86,31 +125,90 @@ fun DownloaderScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            when (phase) {
-                DownloaderViewModel.Phase.CHECKING -> CheckingState()
-                DownloaderViewModel.Phase.NEEDS_DOWNLOAD -> WelcomeState(
-                    onStart = { vm.startFirstRunDownload() },
-                )
-                DownloaderViewModel.Phase.DOWNLOADING -> DownloadingState(
-                    progress = progress,
-                    bytesDownloaded = bytesDownloaded,
-                    bytesTotal = bytesTotal,
-                    speedBps = speedBps,
-                    currentModelId = currentModelId,
-                    onCancel = { vm.cancel() },
-                )
-                DownloaderViewModel.Phase.SUCCESS -> SuccessState()
-                DownloaderViewModel.Phase.ERROR -> ErrorState(
-                    message = errorMessage,
-                    onRetry = { vm.retry() },
-                )
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Основной контент (по центру)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                when (phase) {
+                    DownloaderViewModel.Phase.CHECKING -> CheckingState()
+                    DownloaderViewModel.Phase.NEEDS_DOWNLOAD -> {
+                        // Читаем выбранный язык из prefs чтобы показать правильный размер скачивания.
+                        // Обновляется при смене языка через LaunchedEffect (Activity пересоздаётся).
+                        val selectedLang = remember {
+                            val prefs = ctx.getSharedPreferences("interview_prefs", android.content.Context.MODE_PRIVATE)
+                            prefs.getString("asr_language", "RU") ?: "RU"
+                        }
+                        WelcomeState(
+                            totalBytes = ModelRegistry.firstRunTotalBytesFor(selectedLang),
+                            onStart = { vm.startFirstRunDownload() },
+                        )
+                    }
+                    DownloaderViewModel.Phase.DOWNLOADING -> DownloadingState(
+                        progress = progress,
+                        bytesDownloaded = bytesDownloaded,
+                        bytesTotal = bytesTotal,
+                        speedBps = speedBps,
+                        currentModelId = currentModelId,
+                        onCancel = { vm.cancel() },
+                    )
+                    DownloaderViewModel.Phase.SUCCESS -> SuccessState()
+                    DownloaderViewModel.Phase.ERROR -> ErrorState(
+                        message = errorMessage,
+                        onRetry = { vm.retry() },
+                    )
+                }
+            }
+
+            // Кнопки в правом верхнем углу: язык + выход
+            if (phase != DownloaderViewModel.Phase.SUCCESS && phase != DownloaderViewModel.Phase.DOWNLOADING) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                ) {
+                    // Кнопка смены языка (иконка глобуса)
+                    Box {
+                        IconButton(onClick = { showLanguageMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = "Language",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showLanguageMenu,
+                            onDismissRequest = { showLanguageMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Русский") },
+                                onClick = {
+                                    showLanguageMenu = false
+                                    setDownloaderLanguage(ctx, "RU", "ru")
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("English") },
+                                onClick = {
+                                    showLanguageMenu = false
+                                    setDownloaderLanguage(ctx, "EN", "en")
+                                },
+                            )
+                        }
+                    }
+                    // Кнопка выхода
+                    IconButton(onClick = { showExitDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.downloader_exit),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }
@@ -133,7 +231,7 @@ private fun CheckingState() {
 }
 
 @Composable
-private fun WelcomeState(onStart: () -> Unit) {
+private fun WelcomeState(totalBytes: Long, onStart: () -> Unit) {
     val cs = MaterialTheme.colorScheme
 
     // Иллюстрация (используем иллюстрацию для onboarding offline — она про "ваше устройство")
@@ -195,7 +293,7 @@ private fun WelcomeState(onStart: () -> Unit) {
                 Text(
                     text = stringResource(
                         R.string.downloader_size_value,
-                        formatBytes(ModelRegistry.FIRST_RUN_TOTAL_BYTES),
+                        formatBytes(totalBytes),
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
@@ -304,13 +402,16 @@ private fun DownloadingState(
 
     Spacer(Modifier.height(16.dp))
 
-    // Скорость и текущая модель
+    // Лейблы моделей в progress (RU + EN)
     val modelLabel = currentModelId?.let { id ->
         when (id) {
             "asr_gigaam_v3" -> stringResource(R.string.downloader_label_asr)
             "embedding_camplus" -> stringResource(R.string.downloader_label_camplus)
             "embedding_v1" -> stringResource(R.string.downloader_label_v1)
             "embedding_v2" -> stringResource(R.string.downloader_label_v2)
+            "asr_en_encoder" -> "Whisper encoder"
+            "asr_en_decoder" -> "Whisper decoder"
+            "asr_en_tokens" -> "Whisper tokens"
             else -> id
         }
     }
@@ -431,6 +532,32 @@ private fun ErrorState(message: String?, onRetry: () -> Unit) {
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+/**
+ * Смена языка интерфейса на Downloader экране.
+ *
+ * Делает две вещи:
+ *  1. Сохраняет выбор в SharedPreferences (как InterviewViewModel.setAsrLanguage)
+ *  2. Вызывает AppCompatDelegate.setApplicationLocales — перезапуск Activity
+ *     и перерисовка UI на новом языке.
+ *
+ * @param ctx Андроид Context
+ * @param asrLang Имя варианта в enum AsrLanguage ("RU" / "EN")
+ * @param localeTag IETF tag ("ru" / "en")
+ */
+private fun setDownloaderLanguage(
+    ctx: android.content.Context,
+    asrLang: String,
+    localeTag: String,
+) {
+    // Сохраняем в те же prefs что использует InterviewViewModel
+    val prefs = ctx.getSharedPreferences("interview_prefs", android.content.Context.MODE_PRIVATE)
+    prefs.edit().putString("asr_language", asrLang).apply()
+
+    // Переключаем язык UI — Activity будет пересоздана
+    val locales = androidx.core.os.LocaleListCompat.forLanguageTags(localeTag)
+    androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
 }
 
 /**
