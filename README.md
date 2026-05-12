@@ -42,6 +42,8 @@ ProtocolVoice runs **everything on your device**:
 | Word-level confidence highlighting | ✅ |
 | WAV recording with pause/resume | ✅ |
 | Background recording (foreground service) | ✅ |
+| **Audio file import** (mp3/m4a/wav/ogg/aac/flac/3gp/amr) | ✅ |
+| **Long recording support** (auto-chunking for files >45s, no size limit) | ✅ |
 | In-app audio playback with segment navigation | ✅ |
 | Session history with full editing | ✅ |
 | DOCX export with speakers, timestamps, signatures | ✅ |
@@ -54,8 +56,9 @@ ProtocolVoice runs **everything on your device**:
 | **Default tier** — NER + LexRank, ~6 sec on 18k words | ✅ |
 | Russian named entity extraction (PER / ORG / LOC) | ✅ |
 | Top quotes ranking by LexRank | ✅ |
-| Numerical data extraction with context | ✅ |
-| Risk/problem trigger detection | ✅ |
+| **Numerical data extraction** (amounts, dates, word numerals) | ✅ |
+| **Risk/problem trigger detection** (~80 triggers in 10 categories) | ✅ |
+| **Export summary** to .txt (Downloads), clipboard, share intent | ✅ |
 | Fact-only summary (zero hallucinations) | ✅ |
 | **PRO tier** — narrative summary via QVikhr 1.5B LLM | 🟡 In progress |
 | Optional 1 GB LLM download for narrative output | 🟡 Native library build needed |
@@ -144,11 +147,11 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ## Usage
 
 1. **Optionally fill metadata** (top-right buttons): interview title, location, participants
-2. **Tap "Запись"** (Record) to start. App keeps recording even if minimized.
+2. **Tap "Запись"** (Record) to start — or tap the **🎵 audio file icon** in the top bar to import an existing audio file (mp3/m4a/wav/ogg/aac/flac). App keeps recording even if minimized.
 3. **Tap "Стоп"** (Stop) when done.
-4. **Tap "Распознать"** (Transcribe) — ASR + diarization runs (typically 1-3 min for 30-min recording on modern hardware).
+4. **Tap "Распознать"** (Transcribe) — ASR + diarization runs (typically 1-3 min for 30-min recording on modern hardware). Long files are automatically chunked to handle GigaAM-v3's ~50 sec encoder limit.
 5. **Edit speaker names** in the result list if needed.
-6. **Tap "Резюме"** (Summary) — extracts facts and key quotes (~6 seconds).
+6. **Tap "Резюме"** (Summary) — extracts facts, key quotes, risks, and numbers (~6 seconds). Copy, share, or save as .txt.
 7. **Tap "Сохранить DOCX"** (Save DOCX) — protocol is written to `Downloads/ProtocolVoice/`.
 
 ---
@@ -192,6 +195,9 @@ The app downloads them on first launch and verifies SHA-256 against `manifest.js
 **v0.2 (current):**
 - ✅ English ASR support
 - ✅ Summarization Default tier (NER + LexRank)
+- ✅ Audio file import (any format via MediaCodec)
+- ✅ Auto-chunking for long audio (no length limit on transcription)
+- ✅ Summary export (txt to Downloads, clipboard, share)
 - 🟡 Summarization PRO tier (QVikhr + llama.cpp on-device)
 
 **v0.3:**

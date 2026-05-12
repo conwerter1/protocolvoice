@@ -30,12 +30,17 @@ import app.protocolvoice.asr.SpeakerCountMode
 import app.protocolvoice.asr.TranscriptSegment
 import app.protocolvoice.audio.AudioPlayer
 import app.protocolvoice.audio.AudioRecorder
+import app.protocolvoice.audio.AudioImporter
+import app.protocolvoice.audio.LongAudioProcessor
 import app.protocolvoice.audio.Mp4Encoder
 import app.protocolvoice.data.SessionStore
 import app.protocolvoice.docx.DocxBuilder
 import app.protocolvoice.downloader.ModelDownloader
 import app.protocolvoice.downloader.ModelRegistry
 import app.protocolvoice.downloader.ModelStorage
+import app.protocolvoice.summary.SummaryFacade
+import app.protocolvoice.summary.SummaryFormatter
+import app.protocolvoice.summary.default_tier.SummaryResult
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -69,6 +74,7 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
         /** Ошибка. */
         ERROR,
     }
+
 
     val recorder: AudioRecorder = AudioRecorder(app)
     val asr: AsrService = AsrService(app)
@@ -132,6 +138,7 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
     /** true пока идёт перезагрузка embedding-модели. UI показывает индикатор. */
     private val _isReloadingEmbedding = MutableStateFlow(false)
     val isReloadingEmbedding: StateFlow<Boolean> = _isReloadingEmbedding.asStateFlow()
+
 
     fun setEmbeddingModel(model: EmbeddingModel) {
         if (_embeddingModel.value == model) return
@@ -274,6 +281,313 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // -----------------------------------------------------------------
+    // Импорт аудиофайла из внешнего источника (SAF / file picker)
+    // -----------------------------------------------------------------
+
+    /** Идёт импорт аудио (mp3/m4a/wav/...) → WAV 16kHz mono. */
+    private val _isImportingAudio = MutableStateFlow(false)
+    val isImportingAudio: StateFlow<Boolean> = _isImportingAudio.asStateFlow()
+
+    /** Прогресс импорта [0..1]. */
+    private val _importProgress = MutableStateFlow(0f)
+    val importProgress: StateFlow<Float> = _importProgress.asStateFlow()
+
+    /**
+     * Импортировать аудиофайл из внешнего URI (из файл-пикера SAF).
+     *
+     * Источник может быть любым (mp3/m4a/wav/ogg/aac/flac/3gp/amr) — всё что андроид
+     * MediaCodec умеет распаковать. На выходе — 16kHz mono PCM16 WAV в filesDir/recordings/.
+     *
+     * После успеха приложение переходит в фазу RECORDED — пользователь может выбрать
+     * режим спикеров и нажать «Распознать» как обычно.
+     */
+    fun importAudioFromUri(uri: Uri) {
+        if (_isImportingAudio.value) return
+        val ctx = getApplication<Application>()
+        viewModelScope.launch {
+            _isImportingAudio.value = true
+            _importProgress.value = 0f
+            // Сбрасываем предыдущую сессию (как в resetSession, но не трогаем metadata).
+            player.stop()
+            player.release()
+            _transcript.value = null
+            _m4aFile.value = null
+            _exportedDocx.value = null
+            _summaryResult.value = null
+            _summaryError.value = null
+            _exportedSummaryUri.value = null
+            _currentSessionId.value = null
+
+            try {
+                val result = AudioImporter.importToWav(
+                    ctx = ctx,
+                    uri = uri,
+                    onProgress = { p -> _importProgress.value = p },
+                )
+                _wavFile.value = result.wavFile
+                _phase.value = Phase.RECORDED
+                _toast.value = "Аудио импортировано (${result.durationMs / 1000}с). Нажмите «Распознать»."
+                Log.i(
+                    "InterviewVM",
+                    "Audio imported: ${result.wavFile.absolutePath} " +
+                        "(${result.durationMs}ms, src=${result.sourceSampleRate}Hz/${result.sourceChannels}ch)",
+                )
+            } catch (e: Throwable) {
+                Log.e("InterviewVM", "Audio import failed", e)
+                _toast.value = "Не удалось импортировать аудио: ${e.message}"
+                _phase.value = Phase.IDLE
+            } finally {
+                _isImportingAudio.value = false
+                _importProgress.value = 0f
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Саммаризация интервью (Default tier: NER + LexRank)
+    // -----------------------------------------------------------------
+
+    /** Результат саммаризации. null пока не сгенерировано. */
+    private val _summaryResult = MutableStateFlow<SummaryResult?>(null)
+    val summaryResult: StateFlow<SummaryResult?> = _summaryResult.asStateFlow()
+
+    /** Идёт генерация резюме (UI показывает spinner). */
+    private val _isGeneratingSummary = MutableStateFlow(false)
+    val isGeneratingSummary: StateFlow<Boolean> = _isGeneratingSummary.asStateFlow()
+
+    /** Ошибка генерации (null если ок). */
+    private val _summaryError = MutableStateFlow<String?>(null)
+    val summaryError: StateFlow<String?> = _summaryError.asStateFlow()
+
+    /** Lazy-созданный facade. Null если модели NER не скачаны. */
+    @Volatile private var summaryFacade: SummaryFacade? = null
+
+    /**
+     * Собрать [SummaryFacade]. Если модели NER распакованы в filesDir/models/summary/ —
+     * создаётся с NER (full Default tier). Иначе без NER (только LexRank + regex).
+     */
+    private fun obtainSummaryFacade(): SummaryFacade {
+        summaryFacade?.let { return it }
+        val ctx = getApplication<Application>()
+        val summaryDir = File(ctx.filesDir, "models/summary")
+        val navecDir = File(summaryDir, "navec_news")
+        val slovnetDir = File(summaryDir, "slovnet_ner")
+
+        val facade = if (navecDir.isDirectory && slovnetDir.isDirectory) {
+            try {
+                SummaryFacade.withSlovnet(navecDir, slovnetDir)
+            } catch (e: Throwable) {
+                Log.w("InterviewVM", "Slovnet load failed, falling back to no-NER", e)
+                SummaryFacade.withoutNer()
+            }
+        } else {
+            Log.i("InterviewVM", "Summary NER models not unpacked yet, using no-NER mode")
+            SummaryFacade.withoutNer()
+        }
+        summaryFacade = facade
+        return facade
+    }
+
+    /**
+     * Сгенерировать резюме по текущему transcript (Default tier).
+     * Результат появится в [summaryResult]. На время генерации [isGeneratingSummary] = true.
+     */
+    fun generateSummary() {
+        val transcript = _transcript.value ?: run {
+            _toast.value = "Нет распознанного текста для резюме"
+            return
+        }
+        if (_isGeneratingSummary.value) return  // уже идёт
+
+        _isGeneratingSummary.value = true
+        _summaryError.value = null
+        viewModelScope.launch {
+            try {
+                val plainText = transcript.segments.joinToString(" ") { it.text }
+                val result = withContext(Dispatchers.Default) {
+                    obtainSummaryFacade().summarizeDefault(plainText)
+                }
+                _summaryResult.value = result
+                Log.i(
+                    "InterviewVM",
+                    "Summary done in ${result.processingTimeMs}ms: " +
+                        "${result.persons.size} PER, ${result.organizations.size} ORG, " +
+                        "${result.locations.size} LOC, ${result.topQuotes.size} quotes",
+                )
+            } catch (e: Throwable) {
+                Log.e("InterviewVM", "Summary generation failed", e)
+                _summaryError.value = e.message ?: "Неизвестная ошибка"
+                _toast.value = "Ошибка генерации резюме: ${e.message}"
+            } finally {
+                _isGeneratingSummary.value = false
+            }
+        }
+    }
+
+    /** Сбросить текущий результат резюме (напр. при закрытии экрана). */
+    fun clearSummary() {
+        _summaryResult.value = null
+        _summaryError.value = null
+    }
+
+    /** URI последнего сохранённого .txt файла резюме (для повторного шаринга). */
+    private val _exportedSummaryUri = MutableStateFlow<Uri?>(null)
+    val exportedSummaryUri: StateFlow<Uri?> = _exportedSummaryUri.asStateFlow()
+
+    /**
+     * Получить plain-text резюме для клипборда / share intent. Добавляет
+     * заголовок интервью и участников из текущих metadata/participants.
+     */
+    fun summaryToPlainText(): String? {
+        val r = _summaryResult.value ?: return null
+        val parts = _participants.value.names.values
+            .filter { it.isNotBlank() }
+            .toList()
+        return SummaryFormatter.toPlainText(
+            result = r,
+            interviewTitle = _metadata.value.title.takeIf { it.isNotBlank() },
+            participants = parts,
+        )
+    }
+
+    /**
+     * Сохранить резюме как .txt файл в Downloads/ProtocolVoice/.
+     * Результат доступен в [exportedSummaryUri].
+     */
+    fun exportSummaryToTxt() {
+        val text = summaryToPlainText() ?: run {
+            _toast.value = "Нет резюме для сохранения"
+            return
+        }
+        val r = _summaryResult.value ?: return
+
+        viewModelScope.launch {
+            val uri = withContext(Dispatchers.IO) { writeSummaryTxt(text, r) }
+            if (uri == null) {
+                _toast.value = "Не удалось сохранить резюме"
+            } else {
+                _exportedSummaryUri.value = uri
+                _toast.value = "Резюме сохранено в Downloads/ProtocolVoice/"
+            }
+        }
+    }
+
+    /** Низкоуровневая запись в Downloads/ProtocolVoice/<filename>.txt через MediaStore.
+     *
+     * При сбое MediaStore (это бывает на MIUI/HyperOS) делает fallback на запись
+     * в app-private exports/ + FileProvider для возможности шаринга.
+     */
+    private fun writeSummaryTxt(text: String, result: SummaryResult): Uri? {
+        val ctx = getApplication<Application>()
+        val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(Date(result.generatedAtMs))
+        val baseName = (_metadata.value.title.ifBlank { "Interview" })
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .take(80)
+        val fileName = "Rezume_${baseName}_$ts.txt"  // ASCII-имя, в теле название проекта
+        Log.i("InterviewVM", "writeSummaryTxt: fileName=$fileName, text=${text.length} chars")
+
+        // Сначала пробуем MediaStore (Android Q+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val cv = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "Download/ProtocolVoice")
+                }
+                val resolver = ctx.contentResolver
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv)
+                if (uri == null) {
+                    Log.w("InterviewVM", "MediaStore.insert returned null, falling back to FileProvider")
+                } else {
+                    resolver.openOutputStream(uri)?.use { os ->
+                        os.write(text.toByteArray(Charsets.UTF_8))
+                    } ?: run {
+                        Log.w("InterviewVM", "openOutputStream returned null")
+                    }
+                    Log.i("InterviewVM", "writeSummaryTxt MediaStore OK: $uri")
+                    return uri
+                }
+            } catch (e: Exception) {
+                Log.w("InterviewVM", "MediaStore write failed, will fallback", e)
+            }
+        }
+
+        // Fallback: пытаемся записать напрямую в публичный Downloads (работает
+        // до Android 10, или если MediaStore недоступен).
+        try {
+            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val pvDir = File(downloads, "ProtocolVoice")
+            if (!pvDir.exists()) pvDir.mkdirs()
+            val outFile = File(pvDir, fileName)
+            outFile.writeText(text, Charsets.UTF_8)
+            Log.i("InterviewVM", "writeSummaryTxt public Downloads OK: ${outFile.absolutePath}")
+            return Uri.fromFile(outFile)
+        } catch (e: Exception) {
+            Log.w("InterviewVM", "public Downloads write failed, last resort: app-private", e)
+        }
+
+        // Last resort: app-private + FileProvider (всегда работает, но невидимо в проводнике).
+        return try {
+            val out = File(ctx.filesDir, "exports/$fileName")
+            out.parentFile?.mkdirs()
+            out.writeText(text, Charsets.UTF_8)
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", out)
+            Log.i("InterviewVM", "writeSummaryTxt FileProvider fallback OK: ${out.absolutePath}")
+            uri
+        } catch (e: Exception) {
+            Log.e("InterviewVM", "writeSummaryTxt ALL paths failed", e)
+            null
+        }
+    }
+
+    /** Intent для шаринга резюме как plain-text (без файла). */
+    fun shareSummaryAsTextIntent(): Intent? {
+        val text = summaryToPlainText() ?: return null
+        val title = _metadata.value.title.ifBlank { "Резюме интервью" }
+        return Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Резюме: $title")
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+    }
+
+    /** Intent для шаринга сохранённого .txt файла. */
+    fun shareSummaryTxtIntent(uri: Uri): Intent {
+        return Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    /**
+     * Скопировать резюме в системный буфер обмена через нативный Android API
+     * (не Compose обёртку). Это важно потому что Compose ClipboardManager.setText()
+     * в некоторых версиях обрезает длинные строки. Нативный клипборд Android не имеет
+     * такого лимита.
+     *
+     * Вызывает toast внутри себя — вызывающий код просто вызывает без дополнений.
+     */
+    fun copySummaryToClipboard() {
+        val text = summaryToPlainText() ?: run {
+            _toast.value = "Нет резюме для копирования"
+            return
+        }
+        try {
+            val ctx = getApplication<Application>()
+            val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("Резюме интервью", text)
+            clipboard.setPrimaryClip(clip)
+            Log.i("InterviewVM", "Summary copied to clipboard: ${text.length} chars")
+            _toast.value = "Резюме скопировано (${text.length} симв.)"
+        } catch (e: Exception) {
+            Log.e("InterviewVM", "Clipboard copy failed", e)
+            _toast.value = "Не удалось скопировать: ${e.message}"
+        }
+    }
+
+
+    // -----------------------------------------------------------------
     // Запись
     // -----------------------------------------------------------------
 
@@ -320,6 +634,12 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runRecognition() {
         val wav = _wavFile.value ?: return
+        // Перед новым распознаванием сбрасываем резюме и docx-uri от предыдущего прогона —
+        // иначе после «Сделать резюме» пользователь будет видеть старый результат.
+        _summaryResult.value = null
+        _summaryError.value = null
+        _exportedSummaryUri.value = null
+        _exportedDocx.value = null
         // Разветвление по языку: RU идёт в родной пайплайн (GigaAM + diarization),
         // EN — в Whisper-обёртку (single-speaker в версии 1.0; multi-speaker будет в Шаге 3).
         when (_asrLanguage.value) {
@@ -338,7 +658,25 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
                 _toast.value = asr.errorMessage.value ?: getApplication<Application>().getString(R.string.toast_models_load_failed)
                 return@launch
             }
-            val result = asr.process(wav, speakerMode = _speakerCountMode.value)
+            // Для длинных файлов (>30 мин) — режем на части и склеиваем.
+            // Это избегает OOM на длинных письмах (файл 1ч = 220MB FloatArray) и улучшает
+            // качество диаризации.
+            val result = if (LongAudioProcessor.shouldSplit(wav)) {
+                val totalMs = LongAudioProcessor.wavFileDurationMs(wav)
+                val totalChunks = ((totalMs + LongAudioProcessor.CHUNK_DURATION_MS - 1) /
+                    LongAudioProcessor.CHUNK_DURATION_MS).toInt()
+                _toast.value = "Длинный файл (${totalMs / 60000}мин) — режу на $totalChunks частей по 30мин"
+                LongAudioProcessor.processLong(
+                    asr = asr,
+                    wavFile = wav,
+                    speakerMode = _speakerCountMode.value,
+                    onChunkProgress = { idx, total ->
+                        Log.i("InterviewVM", "Processing chunk ${idx + 1}/$total")
+                    },
+                )
+            } else {
+                asr.process(wav, speakerMode = _speakerCountMode.value)
+            }
             if (result == null) {
                 _phase.value = Phase.ERROR
                 _toast.value = asr.errorMessage.value ?: getApplication<Application>().getString(R.string.toast_recognize_failed)
@@ -615,6 +953,11 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
             _metadata.value = loaded.metadata
             _participants.value = loaded.participants
             _transcript.value = loaded.transcript
+            // Сбрасываем резюме при загрузке другой сессии — резюме было от предыдущей записи.
+            _summaryResult.value = null
+            _summaryError.value = null
+            _exportedSummaryUri.value = null
+            _exportedDocx.value = null
             // Аудио: выставляем либо M4A либо WAV в соответствующий StateFlow,
             // чтобы hasAudio() / ensurePlayerLoaded() работали.
             val audio = loaded.audioFile
@@ -844,6 +1187,11 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
 
     fun consumeToast() { _toast.value = null }
 
+    /** Показать toast из UI-кода (например после clipboard copy). */
+    fun showToast(message: String) {
+        _toast.value = message
+    }
+
     fun resetSession() {
         player.stop()
         player.release()
@@ -851,6 +1199,9 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
         _wavFile.value = null
         _m4aFile.value = null
         _exportedDocx.value = null
+        _summaryResult.value = null
+        _summaryError.value = null
+        _exportedSummaryUri.value = null
         _currentSessionId.value = null
         _phase.value = Phase.IDLE
     }
@@ -902,6 +1253,8 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
             null
         }
     }
+
+    // =============================
 }
 
 

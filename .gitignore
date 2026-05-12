@@ -46,6 +46,10 @@ build_log.txt
 *.bak
 *.tmp
 *.bat
+# Local development backups — не коммитить
+*.sprint*_backup
+*.backup
+*_backup
 
 # === Personal/internal documentation ===
 HANDOFF.md

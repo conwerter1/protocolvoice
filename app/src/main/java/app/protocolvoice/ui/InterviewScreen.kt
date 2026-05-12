@@ -33,6 +33,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.GraphicEq
@@ -147,17 +151,22 @@ fun InterviewScreen(
     val participants by vm.participants.collectAsStateWithLifecycle()
     val toast by vm.toast.collectAsStateWithLifecycle()
     val exportedUri by vm.exportedDocx.collectAsStateWithLifecycle()
+    val summaryResult by vm.summaryResult.collectAsStateWithLifecycle()
+    val isGeneratingSummary by vm.isGeneratingSummary.collectAsStateWithLifecycle()
+    val summaryError by vm.summaryError.collectAsStateWithLifecycle()
+    val isImportingAudio by vm.isImportingAudio.collectAsStateWithLifecycle()
+    val importProgress by vm.importProgress.collectAsStateWithLifecycle()
     val isPlaying by vm.player.isPlaying.collectAsStateWithLifecycle()
     val playerCurrentMs by vm.player.currentMs.collectAsStateWithLifecycle()
     val playerTotalMs by vm.player.totalMs.collectAsStateWithLifecycle()
     val asrLanguage by vm.asrLanguage.collectAsStateWithLifecycle()
-
     val ctx = LocalContext.current
     val snack = remember { SnackbarHostState() }
 
     var showMetadataSheet by remember { mutableStateOf(false) }
     var showParticipantsSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showSummarySheet by remember { mutableStateOf(false) }
     val currentSessionId by vm.currentSessionId.collectAsStateWithLifecycle()
 
     // -- запросы разрешений ----------------------------------------------------
@@ -168,6 +177,28 @@ fun InterviewScreen(
             // toast через snackbar
         }
     }
+
+    // -- Пикер аудиофайла из внешнего хранилища (SAF) ----------------------------------
+    val audioPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            // Просим персистентный доступ, чтобы ContentResolver мог открыть URI позже в выжившем
+            // процессе (вся конвертация в viewModelScope может идти несколько минут для длинных файлов).
+            try {
+                ctx.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            } catch (_: Throwable) { /* не критично — обычный read-grant тоже работает */ }
+            vm.importAudioFromUri(uri)
+        }
+    }
+
+    // =============================
+    // =============================
+    // Existing Modal Sheets
+    // =============================
     val notifPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* не блокируем */ }
@@ -224,6 +255,22 @@ fun InterviewScreen(
                     }
                     IconButton(onClick = onOpenHistory) {
                         Icon(Icons.Default.History, contentDescription = stringResource(R.string.action_history))
+                    }
+                    // Кнопка импорта аудиофайла — видна в фазах IDLE/ERROR.
+                    if (phase == InterviewViewModel.Phase.IDLE ||
+                        phase == InterviewViewModel.Phase.ERROR) {
+                        IconButton(
+                            onClick = {
+                                // SAF пикер для всех аудио MIME-типов
+                                audioPicker.launch(arrayOf("audio/*"))
+                            },
+                            enabled = !isImportingAudio,
+                        ) {
+                            Icon(
+                                Icons.Default.AudioFile,
+                                contentDescription = "Открыть аудиофайл",
+                            )
+                        }
                     }
                     IconButton(onClick = { showMetadataSheet = true }) {
                         Icon(Icons.Default.Description, contentDescription = stringResource(R.string.action_metadata))
@@ -298,6 +345,12 @@ fun InterviewScreen(
                             ctx.startActivity(Intent.createChooser(vm.shareDocxIntent(uri), shareTitle))
                         } ?: vm.exportDocx()
                     },
+                    onSummarize = {
+                        if (summaryResult == null) vm.generateSummary()
+                        showSummarySheet = true
+                    },
+                    isGeneratingSummary = isGeneratingSummary,
+                    summaryReady = summaryResult != null,
                     showShare = exportedUri != null,
                 )
             }
@@ -319,6 +372,39 @@ fun InterviewScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )
+
+            // ---- Сообщение об импорте аудио ----
+            if (isImportingAudio) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = BrandCyan.copy(alpha = 0.12f),
+                    ),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = BrandCyan,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "Импортирую аудио: ${(importProgress * 100).toInt()}%",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { importProgress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
 
             // ---- Выбор количества спикеров и embedding-модели (в фазе RECORDED) ----
             if (phase == InterviewViewModel.Phase.RECORDED) {
@@ -402,6 +488,30 @@ fun InterviewScreen(
                 )
             }
         }
+    }
+
+    if (showSummarySheet) {
+        val shareTitleText = "Поделиться резюме"
+        SummarySheet(
+            result = summaryResult,
+            isGenerating = isGeneratingSummary,
+            error = summaryError,
+            onDismiss = { showSummarySheet = false },
+            onRegenerate = { vm.generateSummary() },
+            onCopy = {
+                // Используем нативный ClipboardManager в ViewModel —
+                // Compose-обёртка обрезала длинные тексты.
+                vm.copySummaryToClipboard()
+            },
+            onShare = {
+                vm.shareSummaryAsTextIntent()?.let { intent ->
+                    ctx.startActivity(Intent.createChooser(intent, shareTitleText))
+                }
+            },
+            onSaveTxt = {
+                vm.exportSummaryToTxt()
+            },
+        )
     }
 
     if (showMetadataSheet) {
@@ -1224,6 +1334,9 @@ private fun EmptyTranscriptHint(
 private fun ExportBottomBar(
     onExport: () -> Unit,
     onShare: () -> Unit,
+    onSummarize: () -> Unit,
+    isGeneratingSummary: Boolean,
+    summaryReady: Boolean,
     showShare: Boolean,
 ) {
     // На MIUI/HyperOS системная навигация перекрывает нижние элементы в edge-to-edge режиме.
@@ -1234,33 +1347,65 @@ private fun ExportBottomBar(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 12.dp,
-                    bottom = 12.dp + navInsets.calculateBottomPadding(),
-                ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = onExport,
-                modifier = Modifier.weight(1f).height(52.dp),
+        Column {
+            // Кнопка «Резюме» — отдельной строкой сверху. Показывает spinner во время генерации.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
             ) {
-                Icon(Icons.Default.Description, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.action_export_docx), fontWeight = FontWeight.SemiBold)
-            }
-            if (showShare) {
                 ElevatedButton(
-                    onClick = onShare,
+                    onClick = onSummarize,
+                    enabled = !isGeneratingSummary,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    if (isGeneratingSummary) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("Собираю резюме…", fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (summaryReady) "Показать резюме" else "Сделать резюме",
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+
+            // Обычные кнопки экспорта
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = 4.dp,
+                        bottom = 12.dp + navInsets.calculateBottomPadding(),
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = onExport,
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null)
+                    Icon(Icons.Default.Description, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.action_send))
+                    Text(stringResource(R.string.action_export_docx), fontWeight = FontWeight.SemiBold)
+                }
+                if (showShare) {
+                    ElevatedButton(
+                        onClick = onShare,
+                        modifier = Modifier.weight(1f).height(52.dp),
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_send))
+                    }
                 }
             }
         }

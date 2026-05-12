@@ -80,9 +80,9 @@
 
     <!-- Speaker count selector -->
     <string name="speaker_count_title">Спикеров</string>
-    <string name="speaker_count_single_label">1</string>
+    <string name="speaker_count_single_label">Полный</string>
     <string name="speaker_count_auto_label">Авто</string>
-    <string name="speaker_count_single_desc">Монолог — в 30× быстрее</string>
+    <string name="speaker_count_single_desc">Полный текст без разбивки по спикерам — максимум слов, в 30× быстрее</string>
     <string name="speaker_count_fixed_desc">ровно %1$d спикера</string>
     <string name="speaker_count_auto_desc">Определить автоматически</string>
 

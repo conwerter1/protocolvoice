@@ -74,6 +74,8 @@ object ModelRegistry {
         OPTIONAL_EMBEDDING,
         /** Английская ASR модель — опциональная, качается при выборе EN */
         OPTIONAL_EN_ASR,
+        /** QVikhr-2.5-1.5B модель для Pro Personal саммаризации */
+        PRO_PERSONAL_AI,
     }
 
     /**
@@ -177,6 +179,55 @@ object ModelRegistry {
         subdir = "en",
     )
 
+    // ────────────────────────────────────────────────────────────────────
+    // Pro Personal AI — QVikhr-2.5-1.5B для локальной саммаризации.
+    // Лежит в подпапке qvikhr/. Размер: ~1.5 GB квантизация Q5_K_M.
+    // Скачивается опционально по запросу пользователя.
+    // ────────────────────────────────────────────────────────────────────
+
+    /** QVikhr-2.5-1.5B модель для Pro Personal саммаризации. */
+    val QVIKHR_MODEL = Model(
+        id = "qvikhr_1_5b",
+        filename = "QVikhr-2.5-1.5B-Instruct-r.Q5_K_M.gguf",
+        sizeBytes = 1_610_612_736L,  // ~1.5 GB
+        sha256 = "0000000000000000000000000000000000000000000000000000000000000000", // TODO: посчитать после заливки
+        tier = Tier.PRO_PERSONAL_AI,
+        subdir = "qvikhr",
+    )
+
+    // ─────────────────────────────────────────────────────────────────
+    // Summarization Default tier: Slovnet NER + Navec embeddings.
+    // Порядоковая саммаризация на устройстве без LLM. Обе лежат в summary/ на HF.
+    // Общий размер этой группы: ~28 MB.
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Navec quantized embeddings (250K Russian words, 300d, PQ-100). */
+    val NAVEC_NEWS = Model(
+        id = "navec_news",
+        filename = "navec_news.tar",
+        sizeBytes = 26_634_240L,   // ~25 MB
+        sha256 = "f07270833d78523edc5781538d67038e95b43975e4a7ae757c693b687f9cbfca",
+        tier = Tier.DEFAULT_EMBEDDING,
+        subdir = "summary",
+    )
+
+    /** Slovnet NER (WordCNN + CRF) для русского PER/ORG/LOC. */
+    val SLOVNET_NER = Model(
+        id = "slovnet_ner",
+        filename = "slovnet_ner.tar",
+        sizeBytes = 2_385_920L,    // ~2.3 MB
+        sha256 = "16c3343a6572ddf0e2b2fc1923113de15a7f5ca5bde90e780dd590418665603e",
+        tier = Tier.DEFAULT_EMBEDDING,
+        subdir = "summary",
+    )
+
+    /** Модели summarization Default tier (обе нужны вместе). */
+    val SUMMARY_BUNDLE: List<Model> = listOf(NAVEC_NEWS, SLOVNET_NER)
+
+    /** Сумма байт для summary bundle. */
+    val SUMMARY_TOTAL_BYTES: Long = SUMMARY_BUNDLE.sumOf { it.sizeBytes }
+
+
     /** Все английские модели вместе — полный комплект для EN распознавания. */
     val EN_ASR_BUNDLE: List<Model> = listOf(ASR_EN_ENCODER, ASR_EN_DECODER, ASR_EN_TOKENS)
 
@@ -192,6 +243,9 @@ object ModelRegistry {
         ASR_EN_ENCODER,
         ASR_EN_DECODER,
         ASR_EN_TOKENS,
+        QVIKHR_MODEL,
+        NAVEC_NEWS,
+        SLOVNET_NER,
     )
 
     /** Модели для first-run скачивания (REQUIRED + DEFAULT_EMBEDDING) ~332 MB.

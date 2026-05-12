@@ -81,8 +81,21 @@ class AsrService(private val ctx: Context) {
     private var recognizer: OfflineRecognizer? = null
     private var diarization: OfflineSpeakerDiarization? = null
 
+    /**
+     * Сохранённые sub-конфиги диаризации из initialize(). Используются вместо чтения
+     * diar.config.* в applyClusteringConfig — в sherpa-onnx 1.13.0 геттер .config
+     * может возвращать невалидные native-ссылки → SIGSEGV в setConfig+332.
+     */
+    private var savedSegmentationConfig: OfflineSpeakerSegmentationModelConfig? = null
+    private var savedEmbeddingConfig: SpeakerEmbeddingExtractorConfig? = null
+    private var savedMinDurationOn: Float = 0.3f
+    private var savedMinDurationOff: Float = 0.5f
+
     /** Текущая загруженная embedding-модель. Нужна чтобы понимать, перезагружать ли при смене выбора. */
     private var loadedEmbeddingModel: EmbeddingModel? = null
+
+    /** Текущий numClusters, выставленный при последней инициализации (-1 = auto). */
+    private var loadedNumClusters: Int = -1
 
     /**
      * Загрузка моделей в память.
@@ -94,10 +107,17 @@ class AsrService(private val ctx: Context) {
      *                       Если другая — пересоздаём только diarization
      *                       (recognizer не трогаем, он от embedding не зависит).
      */
-    suspend fun initialize(embeddingModel: EmbeddingModel = EmbeddingModel.DEFAULT): Boolean = withContext(Dispatchers.IO) {
-        // Рефреш diarization если выбрана другая модель
-        if (diarization != null && loadedEmbeddingModel != embeddingModel) {
-            Log.i(TAG, "Embedding model changed: $loadedEmbeddingModel → $embeddingModel, reloading diarization")
+    suspend fun initialize(
+        embeddingModel: EmbeddingModel = EmbeddingModel.DEFAULT,
+        numClusters: Int = -1,
+    ): Boolean = withContext(Dispatchers.IO) {
+        // Рефреш diarization если выбрана другая модель ИЛИ другой numClusters
+        if (diarization != null && (loadedEmbeddingModel != embeddingModel || loadedNumClusters != numClusters)) {
+            Log.i(
+                TAG,
+                "Diar params changed: emb=$loadedEmbeddingModel→$embeddingModel, " +
+                    "clusters=$loadedNumClusters→$numClusters, reloading",
+            )
             try { diarization?.release() } catch (_: Throwable) {}
             diarization = null
         }
@@ -158,7 +178,7 @@ class AsrService(private val ctx: Context) {
                     provider = "cpu",
                 ),
                 clustering = FastClusteringConfig(
-                    numClusters = -1,    // автоопределение
+                    numClusters = numClusters,    // из параметра initialize() (по дефолту -1 = auto)
                     threshold = 0.7f,    // 0.5 было слишком строго — дробили одного спикера на нескольких
                 ),
                 minDurationOn = 0.3f,    // игнорировать сегменты < 300 мс
@@ -166,8 +186,15 @@ class AsrService(private val ctx: Context) {
             )
             // Без assetManager!
             diarization = OfflineSpeakerDiarization(config = diarConfig)
+            // Сохраняем sub-конфиги как Kotlin-поля, чтобы applyClusteringConfig() не читала их
+            // из diar.config (опасно в sherpa-onnx 1.13.0 — возможны невалидные native-ссылки).
+            savedSegmentationConfig = diarConfig.segmentation
+            savedEmbeddingConfig = diarConfig.embedding
+            savedMinDurationOn = diarConfig.minDurationOn
+            savedMinDurationOff = diarConfig.minDurationOff
             loadedEmbeddingModel = embeddingModel
-            Log.i(TAG, "Speaker diarization initialized with embedding=$embeddingModel")
+            loadedNumClusters = numClusters
+            Log.i(TAG, "Speaker diarization initialized with embedding=$embeddingModel numClusters=$numClusters")
 
             _state.value = State.IDLE
             _statusText.value = ctx.getString(R.string.asr_status_models_loaded)
@@ -241,8 +268,31 @@ class AsrService(private val ctx: Context) {
                 )
             }
 
-            // Для Fixed/Auto — применяем numClusters через setConfig() без перезагрузки моделей.
-            applyClusteringConfig(diar, speakerMode)
+            // Для Fixed/Auto — убеждаемся что diarization инициализирована с нужным numClusters.
+            // Если текущий loadedNumClusters не подходит — переинициализируем всю диаризацию
+            // через initialize() — это самый надёжный путь (не падает).
+            val desiredClusters = when (speakerMode) {
+                SpeakerCountMode.Single -> -1   // недостижимо
+                is SpeakerCountMode.Fixed -> speakerMode.count
+                SpeakerCountMode.Auto -> -1
+            }
+            val diarReady = if (desiredClusters != loadedNumClusters) {
+                Log.i(TAG, "Re-initializing diarization for numClusters=$desiredClusters")
+                val ok = initialize(
+                    embeddingModel = loadedEmbeddingModel ?: EmbeddingModel.DEFAULT,
+                    numClusters = desiredClusters,
+                )
+                if (!ok) {
+                    _errorMessage.value = ctx.getString(R.string.asr_not_initialized)
+                    return@withContext null
+                }
+                diarization ?: run {
+                    _errorMessage.value = ctx.getString(R.string.asr_not_initialized)
+                    return@withContext null
+                }
+            } else {
+                diar    // уже настроен правильно
+            }
 
             _state.value = State.DIARIZING
             _statusText.value = ctx.getString(R.string.asr_status_diarizing)
@@ -253,7 +303,7 @@ class AsrService(private val ctx: Context) {
             // Inline-лямбда `{ ... 0 }` компилируется в SAM с примитивным int →
             // JNI NoSuchMethodError → SIGABRT (см. crash 30.04.2026).
             // Named member function генерирует правильный bridge с java.lang.Integer.
-            val diarSegments = diar.processWithCallback(
+            val diarSegments = diarReady.processWithCallback(
                 samples = samples,
                 callback = ::diarizationCallback,
                 arg = 0L,
@@ -346,45 +396,89 @@ class AsrService(private val ctx: Context) {
     }
 
     /**
-     * Применяет numClusters для текущего прогона.
-     * Использует OfflineSpeakerDiarization.setConfig() — это не перезагружает ONNX-модели,
-     * в native-коде обновляется только clustering конфиг.
+     * Применяет numClusters для текущего прогона — используется только в diarizeOnly() для EN-пайплайна.
+     *
+     * FIX 12.05.2026 (третий подход): оба предыдущих варианта (setConfig() и пересоздание
+     * объекта внутри process()) падают в native-коде sherpa-onnx 1.13.0. Решение —
+     * пересоздавать диаризатор через полный initialize() (в process() вызывается напрямую).
+     * При EN-пайплайне используем эту версию, которая вызывает initialize() через suspend.
      */
-    private fun applyClusteringConfig(diar: OfflineSpeakerDiarization, mode: SpeakerCountMode) {
+    private suspend fun applyClusteringConfig(diar: OfflineSpeakerDiarization, mode: SpeakerCountMode): OfflineSpeakerDiarization {
         val numClusters = when (mode) {
-            SpeakerCountMode.Single -> -1   // недостижимо (single обработан выше)
+            SpeakerCountMode.Single -> -1
             is SpeakerCountMode.Fixed -> mode.count
             SpeakerCountMode.Auto -> -1
         }
-        val newConfig = OfflineSpeakerDiarizationConfig(
-            segmentation = diar.config.segmentation,
-            embedding = diar.config.embedding,
-            clustering = FastClusteringConfig(
-                numClusters = numClusters,
-                threshold = 0.7f,
-            ),
-            minDurationOn = diar.config.minDurationOn,
-            minDurationOff = diar.config.minDurationOff,
+        if (numClusters == loadedNumClusters) return diar    // уже настроен правильно
+        val ok = initialize(
+            embeddingModel = loadedEmbeddingModel ?: EmbeddingModel.DEFAULT,
+            numClusters = numClusters,
         )
-        diar.setConfig(newConfig)
-        Log.i(TAG, "Applied clustering: mode=$mode numClusters=$numClusters")
+        return if (ok) diarization ?: diar else diar
     }
 
     /**
      * Распознаёт один сегмент сэмплов и возвращает список слов с timestamps и confidence.
+     *
+     * ВАЖНО: ASR-модель GigaAM-v3 имеет лимит входа: ~5000 frames (~50 сек аудио)
+     * за один проход через encoder. Если сегмент длиннее — ONNX выбрасывает ошибку
+     * "Mul node ... 5000 by N". Поэтому здесь автоматически режем длинные сегменты
+     * на куски по [MAX_CHUNK_SEC] секунд (с маленьким overlap), распознаём каждый
+     * отдельно и склеиваем результат. Timestamps правильно сдвигаются.
      *
      * Sherpa-onnx OfflineRecognizerResult даёт нам:
      *   - text:       полная строка
      *   - tokens:     массив BPE-токенов
      *   - timestamps: массив времени начала каждого токена (секунды)
      *
-     * confidence у CTC-модели напрямую не доступен через Kotlin API, поэтому
-     * как proxy используем "плотность" токенов: чем больше токенов в секунду,
-     * тем уверенее модель. Для стабильного интервью это работает прилично.
-     * Для production-grade нужно патчить нативный код sherpa-onnx, но это вне
-     * текущего объёма работы.
+     * Confidence у CTC-модели напрямую не доступен через Kotlin API, поэтому
+     * как proxy используем длину слова: длинные слова обычно надёжнее.
      */
     private fun transcribeSegment(
+        rec: OfflineRecognizer,
+        samples: FloatArray,
+        offsetMs: Long,
+        endMs: Long,
+    ): List<TranscriptWord> {
+        val durationSec = samples.size.toFloat() / 16_000f
+        // Если сегмент короткий — обрабатываем как раньше, одним проходом.
+        if (durationSec <= MAX_CHUNK_SEC) {
+            return transcribeChunk(rec, samples, offsetMs, endMs)
+        }
+
+        // Длинный сегмент — режем на куски.
+        Log.i(TAG, "Long segment ${"%.1f".format(durationSec)}s, splitting into chunks of ${MAX_CHUNK_SEC.toInt()}s")
+        val chunkSamples = (MAX_CHUNK_SEC * 16_000f).toInt()
+        val overlapSamples = (CHUNK_OVERLAP_SEC * 16_000f).toInt()
+        val stepSamples = chunkSamples - overlapSamples
+        val allWords = mutableListOf<TranscriptWord>()
+        var chunkIdx = 0
+        var startSample = 0
+        while (startSample < samples.size) {
+            val endSample = minOf(startSample + chunkSamples, samples.size)
+            val chunk = samples.copyOfRange(startSample, endSample)
+            val chunkOffsetMs = offsetMs + (startSample * 1000L) / 16_000L
+            val chunkEndMs = offsetMs + (endSample * 1000L) / 16_000L
+            val t0 = System.currentTimeMillis()
+            val words = transcribeChunk(rec, chunk, chunkOffsetMs, chunkEndMs)
+            Log.i(
+                TAG,
+                "  chunk #$chunkIdx [${chunkOffsetMs}..${chunkEndMs}ms]: " +
+                    "${words.size} words in ${System.currentTimeMillis() - t0}ms",
+            )
+            allWords.addAll(words)
+            chunkIdx++
+            if (endSample >= samples.size) break
+            startSample += stepSamples
+        }
+        Log.i(TAG, "Long segment done: ${allWords.size} total words from $chunkIdx chunks")
+        return allWords
+    }
+
+    /**
+     * Распознаёт ОДИН кусок ≤ MAX_CHUNK_SEC секунд. Не делает chunking — это работа caller'а.
+     */
+    private fun transcribeChunk(
         rec: OfflineRecognizer,
         samples: FloatArray,
         offsetMs: Long,
@@ -508,8 +602,8 @@ class AsrService(private val ctx: Context) {
             return@withContext null
         }
         try {
-            applyClusteringConfig(diar, speakerMode)
-            val segs = diar.processWithCallback(
+            val diarReady = applyClusteringConfig(diar, speakerMode)
+            val segs = diarReady.processWithCallback(
                 samples = samples,
                 callback = ::diarizationCallback,
                 arg = 0L,
@@ -547,10 +641,27 @@ class AsrService(private val ctx: Context) {
         recognizer = null
         diarization = null
         loadedEmbeddingModel = null
+        savedSegmentationConfig = null
+        savedEmbeddingConfig = null
         _state.value = State.IDLE
     }
 
     companion object {
         private const val TAG = "AsrService"
+
+        /**
+         * Максимальная длина одного куска для ASR (секунды).
+         * GigaAM-v3 encoder имеет лимит ~5000 frames = ~50 сек. Берём с запасом 45 сек,
+         * чтобы оставить место для padding'а внутри ONNX runtime.
+         */
+        private const val MAX_CHUNK_SEC: Float = 45f
+
+        /**
+         * Overlap между соседними чанками (секунды) — нужен чтобы слова на границе
+         * не терялись. 0.5 сек = ~1-2 слова, разумно для русской речи.
+         * Дубликаты на стыке мы не убираем — пользователь увидит небольшое повторение,
+         * но это лучше чем потеря слов на границе.
+         */
+        private const val CHUNK_OVERLAP_SEC: Float = 0.5f
     }
 }
