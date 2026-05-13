@@ -53,6 +53,11 @@
             android:foregroundServiceType="microphone" />
 
         <service
+            android:name=".audio.ProcessingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
             android:name=".downloader.DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

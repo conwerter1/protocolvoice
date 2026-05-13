@@ -45,14 +45,14 @@ object SummaryFormatter {
         appendLine("Слов в стенограмме: ${result.transcriptWords}")
         appendLine("Предложений: ${result.sentencesCount}")
         appendLine("Время обработки: ${"%.1f".format(result.processingTimeMs / 1000.0)} сек")
-        if (result.persons.isNotEmpty()) {
+        if (result.persons.isNotEmpty() || result.organizations.isNotEmpty() || result.locations.isNotEmpty()) {
             appendLine(
                 "Найдено: ${result.persons.size} имён, " +
                     "${result.organizations.size} организаций, " +
                     "${result.locations.size} локаций"
             )
         } else {
-            appendLine("(NER-модели не загружены — список имён недоступен)")
+            appendLine("NER-анализ выполнен, имён/организаций/локаций не обнаружено.")
         }
         appendLine()
 

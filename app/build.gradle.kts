@@ -50,7 +50,8 @@ android {
     // ASR-модели уже сжаты внутри (ONNX = protobuf). AAPT2 пытается их сжать
     // при сборке APK — это медленно и бессмысленно. Отключаем.
     androidResources {
-        noCompress += listOf("onnx", "tflite")
+        // Не сжимаем эти форматы в APK — RandomAccessFile/mmap требует сырых файлов
+        noCompress += listOf("onnx", "tflite", "bin", "gz")
     }
 
     packaging {

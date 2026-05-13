@@ -106,6 +106,7 @@ fun SummarySheet(
                         onCopy = onCopy,
                         onShare = onShare,
                         onSaveTxt = onSaveTxt,
+                        onRegenerate = onRegenerate,
                     )
                 }
             }
@@ -135,13 +136,14 @@ private fun Surface_TopBar(onDismiss: () -> Unit) {
 }
 
 /**
- * Нижняя панель с действиями: копировать / поделиться / сохранить .txt.
+ * Нижняя панель с действиями: копировать / поделиться / сохранить .txt / перегенерировать.
  */
 @Composable
 private fun ActionBar(
     onCopy: () -> Unit,
     onShare: () -> Unit,
     onSaveTxt: () -> Unit,
+    onRegenerate: () -> Unit,
 ) {
     val navInsets = WindowInsets.navigationBars.asPaddingValues()
     Surface(
@@ -149,55 +151,68 @@ private fun ActionBar(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(
                     start = 12.dp,
                     end = 12.dp,
-                    top = 10.dp,
-                    bottom = 10.dp + navInsets.calculateBottomPadding(),
+                    top = 8.dp,
+                    bottom = 8.dp + navInsets.calculateBottomPadding(),
                 ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            // Копировать
-            OutlinedButton(
-                onClick = onCopy,
-                modifier = Modifier.weight(1f).height(48.dp),
+            // Первый ряд — действия с результатом
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Копировать", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                // Копировать
+                OutlinedButton(
+                    onClick = onCopy,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) {
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Копировать", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                // Поделиться
+                OutlinedButton(
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Поделиться", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                // Сохранить .txt
+                Button(
+                    onClick = onSaveTxt,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Сохранить", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
-            // Поделиться
-            OutlinedButton(
-                onClick = onShare,
-                modifier = Modifier.weight(1f).height(48.dp),
+            // Второй ряд — перегенерировать
+            TextButton(
+                onClick = onRegenerate,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Icon(
-                    Icons.Default.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Поделиться", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            }
-            // Сохранить .txt
-            Button(
-                onClick = onSaveTxt,
-                modifier = Modifier.weight(1f).height(48.dp),
-            ) {
-                Icon(
-                    Icons.Default.Save,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Сохранить", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Сделать резюме заново", fontSize = 13.sp)
             }
         }
     }
@@ -271,7 +286,7 @@ private fun ResultContent(summary: SummaryResult) {
                 fontSize = 13.sp,
                 color = cs.onSurfaceVariant,
             )
-            if (summary.persons.isNotEmpty()) {
+            if (summary.persons.isNotEmpty() || summary.organizations.isNotEmpty() || summary.locations.isNotEmpty()) {
                 Text(
                     "Имён: ${summary.persons.size}, организаций: ${summary.organizations.size}, " +
                         "локаций: ${summary.locations.size}",
@@ -279,8 +294,7 @@ private fun ResultContent(summary: SummaryResult) {
                 )
             } else {
                 Text(
-                    "NER-модели не загружены — список имён недоступен. " +
-                        "Скачайте summary-модели в настройках, чтобы получить полный анализ.",
+                    "Имён в тексте не обнаружено (NER выполнен успешно).",
                     fontSize = 12.sp,
                     color = cs.onSurfaceVariant,
                 )

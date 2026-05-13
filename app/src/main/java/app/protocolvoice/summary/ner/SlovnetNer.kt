@@ -90,9 +90,11 @@ class SlovnetNer private constructor(
             require(arraysDir.exists()) { "arrays/ not found in ${slovnetDir.path}" }
             require(vocabsDir.exists()) { "vocabs/ not found in ${slovnetDir.path}" }
 
-            // Vocabs
-            val shapeVocab = readGzippedLines(File(vocabsDir, "shape.gz"))
-            val tagVocab = readGzippedLines(File(vocabsDir, "tag.gz"))
+            // Vocabs. На устройстве файлы могут быть либо shape.gz (оригинальные из tar),
+            // либо shape (без расширения — Android AssetManager распаковал их при копировании из assets).
+            // Проверяем оба варианта.
+            val shapeVocab = readVocab(vocabsDir, "shape")
+            val tagVocab = readVocab(vocabsDir, "tag")
             require(shapeVocab.size == SHAPE_VOCAB_SIZE) {
                 "shape vocab size ${shapeVocab.size} != $SHAPE_VOCAB_SIZE"
             }
@@ -141,6 +143,29 @@ class SlovnetNer private constructor(
                 headW = loadFloat(19, L3_OUT * NUM_TAGS),
                 headB = loadFloat(20, NUM_TAGS),
                 crfTrans = loadFloat(21, NUM_TAGS * NUM_TAGS),
+            )
+        }
+
+        /**
+         * Прочитать vocab из файла с указанным базовым именем (напр. "shape").
+         * Пробует shape.gz, shape, shape.txt. Автоматически определяет сжатие по gzip magic 0x1F 0x8B.
+         */
+        private fun readVocab(dir: File, baseName: String): List<String> {
+            val candidates = listOf("$baseName.gz", baseName, "$baseName.txt")
+            for (c in candidates) {
+                val f = File(dir, c)
+                if (f.exists()) {
+                    val bytes = f.readBytes()
+                    val text = if (bytes.size >= 2 && bytes[0] == 0x1F.toByte() && bytes[1] == 0x8B.toByte()) {
+                        GZIPInputStream(bytes.inputStream()).bufferedReader(Charsets.UTF_8).readText()
+                    } else {
+                        String(bytes, Charsets.UTF_8)
+                    }
+                    return text.split('\n').filter { it.isNotEmpty() }
+                }
+            }
+            throw java.io.FileNotFoundException(
+                "vocab '$baseName' not found in ${dir.path} (tried: $candidates)"
             )
         }
 

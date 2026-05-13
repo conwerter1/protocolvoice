@@ -15,6 +15,7 @@ build/
 captures/
 .externalNativeBuild/
 .cxx/
+.kotlin/
 
 # === IDE files ===
 .idea/

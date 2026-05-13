@@ -1,0 +1,221 @@
+{
+  "emb": {
+    "word": {
+      "id": "news_v1_1B_250K_300d_100q",
+      "indexes": {
+        "shape": [
+          250002,
+          100
+        ],
+        "dtype": "uint8"
+      },
+      "codes": {
+        "shape": [
+          100,
+          256,
+          3
+        ],
+        "dtype": "float32"
+      }
+    },
+    "shape": {
+      "weight": {
+        "shape": [
+          66,
+          30
+        ],
+        "dtype": "float32",
+        "array": 0
+      }
+    }
+  },
+  "encoder": {
+    "layers": [
+      {
+        "conv": {
+          "weight": {
+            "shape": [
+              256,
+              330,
+              3
+            ],
+            "dtype": "float32",
+            "array": 1
+          },
+          "bias": {
+            "shape": [
+              256
+            ],
+            "dtype": "float32",
+            "array": 2
+          },
+          "padding": 1
+        },
+        "relu": {},
+        "norm": {
+          "weight": {
+            "shape": [
+              256
+            ],
+            "dtype": "float32",
+            "array": 3
+          },
+          "bias": {
+            "shape": [
+              256
+            ],
+            "dtype": "float32",
+            "array": 4
+          },
+          "mean": {
+            "shape": [
+              256
+            ],
+            "dtype": "float32",
+            "array": 5
+          },
+          "std": {
+            "shape": [
+              256
+            ],
+            "dtype": "float32",
+            "array": 6
+          }
+        }
+      },
+      {
+        "conv": {
+          "weight": {
+            "shape": [
+              128,
+              256,
+              3
+            ],
+            "dtype": "float32",
+            "array": 7
+          },
+          "bias": {
+            "shape": [
+              128
+            ],
+            "dtype": "float32",
+            "array": 8
+          },
+          "padding": 1
+        },
+        "relu": {},
+        "norm": {
+          "weight": {
+            "shape": [
+              128
+            ],
+            "dtype": "float32",
+            "array": 9
+          },
+          "bias": {
+            "shape": [
+              128
+            ],
+            "dtype": "float32",
+            "array": 10
+          },
+          "mean": {
+            "shape": [
+              128
+            ],
+            "dtype": "float32",
+            "array": 11
+          },
+          "std": {
+            "shape": [
+              128
+            ],
+            "dtype": "float32",
+            "array": 12
+          }
+        }
+      },
+      {
+        "conv": {
+          "weight": {
+            "shape": [
+              64,
+              128,
+              3
+            ],
+            "dtype": "float32",
+            "array": 13
+          },
+          "bias": {
+            "shape": [
+              64
+            ],
+            "dtype": "float32",
+            "array": 14
+          },
+          "padding": 1
+        },
+        "relu": {},
+        "norm": {
+          "weight": {
+            "shape": [
+              64
+            ],
+            "dtype": "float32",
+            "array": 15
+          },
+          "bias": {
+            "shape": [
+              64
+            ],
+            "dtype": "float32",
+            "array": 16
+          },
+          "mean": {
+            "shape": [
+              64
+            ],
+            "dtype": "float32",
+            "array": 17
+          },
+          "std": {
+            "shape": [
+              64
+            ],
+            "dtype": "float32",
+            "array": 18
+          }
+        }
+      }
+    ]
+  },
+  "head": {
+    "proj": {
+      "weight": {
+        "shape": [
+          64,
+          8
+        ],
+        "dtype": "float32",
+        "array": 19
+      },
+      "bias": {
+        "shape": [
+          8
+        ],
+        "dtype": "float32",
+        "array": 20
+      }
+    },
+    "crf": {
+      "transitions": {
+        "shape": [
+          8,
+          8
+        ],
+        "dtype": "float32",
+        "array": 21
+      }
+    }
+  }
+}

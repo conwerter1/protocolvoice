@@ -170,6 +170,12 @@
     <string name="notification_channel_recording">Запись интервью</string>
     <string name="notification_recording_title">Идёт запись интервью</string>
     <string name="notification_recording_text">Не закрывайте приложение</string>
+    <string name="notification_channel_processing">Обработка записи</string>
+    <string name="processing_title">Обработка записи</string>
+    <string name="processing_default_text">Не закрывайте приложение</string>
+    <string name="processing_importing">Импортируем аудио…</string>
+    <string name="processing_recognizing">Распознаём речь…</string>
+    <string name="processing_summarizing">Генерируем резюме…</string>
 
     <!-- Notifications: Download Service -->
     <string name="notification_channel_download">Загрузка моделей</string>
