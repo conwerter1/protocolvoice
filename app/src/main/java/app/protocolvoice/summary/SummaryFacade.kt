@@ -2,6 +2,7 @@ package app.protocolvoice.summary
 
 import app.protocolvoice.summary.default_tier.DefaultSummaryService
 import app.protocolvoice.summary.default_tier.SummaryResult
+import app.protocolvoice.summary.ner.NerDiagnostics
 import app.protocolvoice.summary.ner.NerProvider
 import app.protocolvoice.summary.ner.NoOpNerProvider
 import app.protocolvoice.summary.ner.SlovnetNerProvider
@@ -89,9 +90,23 @@ class SummaryFacade(
     companion object {
         /**
          * Только Default tier с NER (рекомендуемый минимум).
+         *
+         * @param context если передан — после загрузки запускается диагностика порта
+         *                против Python ground truth. Результат пишется в filesDir/slovnet_diag.txt.
          */
-        fun withSlovnet(navecDir: File, slovnetDir: File): SummaryFacade {
+        fun withSlovnet(
+            navecDir: File,
+            slovnetDir: File,
+            context: android.content.Context? = null,
+        ): SummaryFacade {
             val provider = SlovnetNerProvider.load(navecDir, slovnetDir)
+            if (context != null) {
+                try {
+                    NerDiagnostics.run(context, provider.ner)
+                } catch (t: Throwable) {
+                    android.util.Log.w("SummaryFacade", "diagnostic run failed", t)
+                }
+            }
             return SummaryFacade(provider)
         }
 

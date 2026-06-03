@@ -513,7 +513,7 @@ class InterviewViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 Log.i("InterviewVM", "Loading Slovnet NER from $navecDir + $slovnetDir")
                 writeStatus("BEFORE LOAD\n$diagBuilder")
-                val f = SummaryFacade.withSlovnet(navecDir, slovnetDir)
+                val f = SummaryFacade.withSlovnet(navecDir, slovnetDir, getApplication())
                 writeStatus("LOAD OK — using Slovnet NER\n$diagBuilder")
                 summaryFacadeIsNoOp = false
                 f

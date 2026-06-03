@@ -63,6 +63,14 @@ android {
             useLegacyPackaging = true
         }
     }
+
+    testOptions {
+        unitTests.all {
+            it.useJUnit()
+            // Для отладочных unit-тестов SlovnetNer.
+            it.jvmArgs("-Xmx2g")
+        }
+    }
 }
 
 dependencies {
@@ -99,4 +107,7 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Unit tests (для диагностики SlovnetNer Kotlin port против Python ground truth)
+    testImplementation("junit:junit:4.13.2")
 }

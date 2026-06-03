@@ -29,7 +29,7 @@ import java.util.zip.GZIPInputStream
  *
  * Это даёт 300-мерный float32 вектор.
  *
- * vocab.bin — UTF-8 текст со словами, разделёнными переносом строки.
+ * vocab.bin — navec binary: gzip { uint32 count, uint32[count] wordCounts, UTF-8 text '\n'-separated }.
  *
  * Производительность:
  *   - Файлы читаются через MappedByteBuffer (zero-copy)
@@ -66,15 +66,27 @@ class NavecEmbeddings private constructor(
             require(pqFile.exists()) { "pq.bin not found: ${pqFile.path}" }
             require(vocabFile.exists()) { "vocab.bin not found: ${vocabFile.path}" }
 
-            // Загрузка vocab (gzipped или plain UTF-8?)
-            // Файл из tar — plain UTF-8 текст, но если gzipped — снимаем
+            // ====================================================================
+            // Загрузка vocab (navec binary format):
+            //   gzip { uint32 count, uint32[count] wordCounts, UTF-8 text words '\n' }
+            // ====================================================================
             val vocabBytes = vocabFile.readBytes()
-            val vocabText = if (vocabBytes.size >= 2 && vocabBytes[0] == 0x1F.toByte() && vocabBytes[1] == 0x8B.toByte()) {
-                GZIPInputStream(vocabBytes.inputStream()).bufferedReader(Charsets.UTF_8).readText()
+            val decompressed: ByteArray = if (vocabBytes.size >= 2 &&
+                vocabBytes[0] == 0x1F.toByte() && vocabBytes[1] == 0x8B.toByte()) {
+                GZIPInputStream(vocabBytes.inputStream()).readBytes()
             } else {
-                String(vocabBytes, Charsets.UTF_8)
+                vocabBytes
             }
-            val allWords = vocabText.split('\n').filter { it.isNotEmpty() }
+            // Первые 4 байта = uint32 LE count
+            val vocabCount = ByteBuffer.wrap(decompressed, 0, 4)
+                .order(ByteOrder.LITTLE_ENDIAN).int
+            // Пропускаем 4 + 4*count байт (count + counts[]), остальное — UTF-8 текст слов
+            val textOffset = 4 + 4 * vocabCount
+            require(textOffset < decompressed.size) {
+                "vocab.bin: textOffset=$textOffset >= size=${decompressed.size}; vocabCount=$vocabCount"
+            }
+            val wordsText = String(decompressed, textOffset, decompressed.size - textOffset, Charsets.UTF_8)
+            val allWords = wordsText.split('\n').filter { it.isNotEmpty() }
             // ВАЖНО: pq.bin хранит индексы только для первых VOCAB_SIZE слов.
             // Если vocab содержит больше — обрезаем хвост, иначе при попытке прочитать
             // индексы за пределами 25 000 200 байт получим IndexOutOfBoundsException.

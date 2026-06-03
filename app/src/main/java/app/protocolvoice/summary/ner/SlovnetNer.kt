@@ -234,6 +234,70 @@ class SlovnetNer private constructor(
     }
 
     /**
+     * DIAGNOSTIC: промежуточные выходы каждого слоя, channels-LAST [N, C].
+     */
+    class Intermediates {
+        lateinit var conv1PostRelu: FloatArray
+        lateinit var norm1: FloatArray
+        lateinit var conv2PostRelu: FloatArray
+        lateinit var norm2: FloatArray
+        lateinit var conv3PostRelu: FloatArray
+        lateinit var norm3: FloatArray
+        lateinit var emissions: FloatArray
+        lateinit var tags: IntArray
+    }
+
+    /**
+     * Прямой проход от готовых эмбеддингов (минуя Navec/Shape lookup).
+     * Используется для диагностики (сравнение с Python ground truth).
+     *
+     * @param input эмбеддинги [N * INPUT_DIM] channels-LAST
+     * @param n длина последовательности
+     * @param dump если не null — заполнит копиями промежуточных тензоров
+     */
+    fun forwardFromEmbeddings(input: FloatArray, n: Int, dump: Intermediates?): IntArray {
+        // Layer 1
+        var x = conv1d(input, n, INPUT_DIM, l1ConvW, l1ConvB, L1_OUT)
+        reluInPlace(x)
+        if (dump != null) dump.conv1PostRelu = x.copyOf()
+        batchNormInPlace(x, n, L1_OUT, l1BnW, l1BnB, l1BnMean, l1BnStd)
+        if (dump != null) dump.norm1 = x.copyOf()
+
+        // Layer 2
+        x = conv1d(x, n, L1_OUT, l2ConvW, l2ConvB, L2_OUT)
+        reluInPlace(x)
+        if (dump != null) dump.conv2PostRelu = x.copyOf()
+        batchNormInPlace(x, n, L2_OUT, l2BnW, l2BnB, l2BnMean, l2BnStd)
+        if (dump != null) dump.norm2 = x.copyOf()
+
+        // Layer 3
+        x = conv1d(x, n, L2_OUT, l3ConvW, l3ConvB, L3_OUT)
+        reluInPlace(x)
+        if (dump != null) dump.conv3PostRelu = x.copyOf()
+        batchNormInPlace(x, n, L3_OUT, l3BnW, l3BnB, l3BnMean, l3BnStd)
+        if (dump != null) dump.norm3 = x.copyOf()
+
+        // Linear head
+        val emissions = FloatArray(n * NUM_TAGS)
+        for (i in 0 until n) {
+            val rowOffset = i * L3_OUT
+            for (j in 0 until NUM_TAGS) {
+                var sum = headB[j]
+                for (k in 0 until L3_OUT) {
+                    sum += x[rowOffset + k] * headW[k * NUM_TAGS + j]
+                }
+                emissions[i * NUM_TAGS + j] = sum
+            }
+        }
+        if (dump != null) dump.emissions = emissions.copyOf()
+
+        // CRF
+        val tags = crfDecode(emissions, n).toIntArray()
+        if (dump != null) dump.tags = tags.copyOf()
+        return tags
+    }
+
+    /**
      * Conv1D с kernel=3, padding=1.
      *
      * @param input [seqLen * inCh] row-major

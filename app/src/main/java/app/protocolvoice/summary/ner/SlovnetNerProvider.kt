@@ -21,7 +21,7 @@ import java.io.File
  *  5. Вернуть top-N сущностей в виде NerEntity
  */
 class SlovnetNerProvider(
-    private val ner: SlovnetNer,
+    val ner: SlovnetNer,
     private val sentenceSegmenter: (String) -> List<String> =
         { text -> app.protocolvoice.summary.core.RuSentenceSegmenter.segment(text) },
 ) : NerProvider {
