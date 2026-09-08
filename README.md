@@ -192,7 +192,7 @@ The app downloads them on first launch and verifies SHA-256 against `manifest.js
 
 ## Roadmap
 
-**v0.2 (current):**
+**Implemented features (v1.0.x):**
 - ✅ English ASR support
 - ✅ Summarization Default tier (NER + LexRank)
 - ✅ Audio file import (any format via MediaCodec)

@@ -12,8 +12,8 @@ android {
         applicationId = "app.protocolvoice"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         // sherpa-onnx native libraries для двух основных архитектур.
         // Современные Xiaomi (включая 12T) — arm64-v8a.
