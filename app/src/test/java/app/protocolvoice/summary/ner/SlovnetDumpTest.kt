@@ -1,6 +1,8 @@
 package app.protocolvoice.summary.ner
 
 import org.junit.Test
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -29,8 +31,8 @@ class SlovnetDumpTest {
         // с этим рабочим каталогом.
         private val PROJECT_ROOT = File(System.getProperty("user.dir") ?: ".")
         private val ARRAYS_DIR = File(PROJECT_ROOT, "src/main/assets/summary/slovnet_ner/arrays")
-        private val GROUND_TRUTH_DIR = File("C:/Work_Claude/Temp/slovnet_debug/kotlin_test_data")
-        private val DUMP_OUT_FILE = File("C:/Work_Claude/Temp/slovnet_debug/kotlin_dump.txt")
+        private val GROUND_TRUTH_DIR = File(PROJECT_ROOT, "src/main/assets/debug")
+        private val DUMP_OUT_FILE = File(PROJECT_ROOT, "build/reports/slovnet/kotlin_dump.txt")
 
         // Архитектура (как в SlovnetNer)
         const val INPUT_DIM = 330
@@ -200,9 +202,10 @@ class SlovnetDumpTest {
                 (actual[i] - expected[i]).toDouble()
         }
         val rmse = kotlin.math.sqrt(sumSqErr / actual.size)
-        val matches = maxDiff <= EPS
+        val matches = actual.all { it.isFinite() } && maxDiff <= EPS
         val status = if (matches) "✓" else "✗"
         logLine("  $status $name: maxDiff=${"%.6f".format(maxDiff)} at idx=$maxDiffIdx, RMSE=${"%.6f".format(rmse)}")
+        assertTrue("$name differs from the reference: maxDiff=$maxDiff", matches)
         if (!matches) {
             // Печатаем первые 5 расхождений
             var shown = 0
@@ -319,6 +322,7 @@ class SlovnetDumpTest {
         logLine("  Kotlin tag names:   ${tags.map { tagVocab[it] }}")
         logLine("  Expected tag names: ${expTags.map { tagVocab[it] }}")
         val tagsMatch = tags.contentEquals(expTags)
+        assertArrayEquals("Decoded NER tags differ from the reference", expTags, tags)
         logLine("  TAGS MATCH: $tagsMatch")
         logLine()
 

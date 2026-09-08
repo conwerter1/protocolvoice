@@ -9,9 +9,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -353,12 +356,31 @@ fun InterviewScreen(
                     summaryReady = summaryResult != null,
                     showShare = exportedUri != null,
                 )
+            } else {
+                // ---- Контролы записи ----
+                RecordControls(
+                    phase = phase,
+                    onStart = {
+                        if (vm.recorder.hasPermission()) vm.startRecording()
+                        else recordPermission.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onPause = { vm.pauseRecording() },
+                    onResume = { vm.resumeRecording() },
+                    onStop = { vm.stopRecording() },
+                    onProcess = { vm.runRecognition() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+
             }
         },
     ) { padding ->
         Column(modifier = Modifier
             .fillMaxSize()
-            .padding(padding),
+            .padding(padding)
+            .then(if (transcript == null) Modifier.verticalScroll(rememberScrollState()) else Modifier),
         ) {
             // ---- Карточка статуса ----
             StatusCard(
@@ -427,22 +449,6 @@ fun InterviewScreen(
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
-
-            // ---- Контролы записи ----
-            RecordControls(
-                phase = phase,
-                onStart = {
-                    if (vm.recorder.hasPermission()) vm.startRecording()
-                    else recordPermission.launch(Manifest.permission.RECORD_AUDIO)
-                },
-                onPause = { vm.pauseRecording() },
-                onResume = { vm.resumeRecording() },
-                onStop = { vm.stopRecording() },
-                onProcess = { vm.runRecognition() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-            )
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),
